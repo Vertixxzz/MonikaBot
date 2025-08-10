@@ -1,4 +1,4 @@
-/.idea
+.idea
 cfg.py
 /venv/
 */__pycache__/
