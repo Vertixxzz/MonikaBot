@@ -9,6 +9,7 @@ from aiogram import Router, F
 from aiogram.types import Message, FSInputFile
 from vosk import Model, KaldiRecognizer
 from cfg import *
+import ffmpeg
 
 router = Router()
 
@@ -41,13 +42,19 @@ async def handle_voice(message: Message, bot: Bot):
         file = await bot.get_file(message.reply_to_message.voice.file_id)
         ogg_path = f"voice_{message.from_user.id}.ogg"
         await bot.download_file(file.file_path, ogg_path)
-
+        original_user = message.reply_to_message.from_user
+        username = original_user.username or original_user.first_name
         text = await recognition(ogg_path)
-        await message.answer(f"{text}")
+
+        if text == "":
+            await message.answer("Я не смогла услышать слова в этом голосовом")
+            return
+
+        await message.answer(f"@{username if original_user.username else username} сказал: {text}")
 
         os.remove(ogg_path)
         wav_path = ogg_path.replace(".ogg", ".wav")
         if os.path.exists(wav_path):
             os.remove(wav_path)
     else:
-        await message.answer("ты еблан? Пришли это в ответ на голосовое")
+        await message.answer("Пришли это в ответ на голосовое")

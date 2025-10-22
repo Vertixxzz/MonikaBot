@@ -4,7 +4,7 @@ from aiogram.types import FSInputFile
 from aiogram.enums import ParseMode
 from aiogram.utils.markdown import hbold
 
-SEND_INTERVAL_MS = 5  # миллисекунды, т.е. 5 секунд
+SEND_INTERVAL_MS = 5
 
 router = Router()
 
@@ -21,4 +21,4 @@ async def start_sending_images(message: types.Message, bot: Bot):
     while True:
         photo = FSInputFile("C:/Users/Саша/PycharmProjects/NewMonika/NewMonika/monika/handlers/image.png")
         await bot.send_photo(chat_id=message.chat.id, photo=photo)
-        await asyncio.sleep(SEND_INTERVAL_MS / 1000)  # переведём в секунды
+        await asyncio.sleep(SEND_INTERVAL_MS / 1000)

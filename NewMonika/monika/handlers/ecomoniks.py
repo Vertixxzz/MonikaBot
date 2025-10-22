@@ -3,42 +3,58 @@ import random
 
 from aiogram import Router, F
 from aiogram.types import Message
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from cfg import *
 
 router = Router()
 
 early_reply = ["Успеется, хапуга.", "Чё ты такой нетерпеливый?", "Да подожди, я вот только недавно тебе давала денег."]
 
+def to_utc_naive(dt):
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        # считаем, что это уже UTC-naive; если это локальное — тогда лучше исправить источник
+        return dt
+    # переводим момент времени в UTC, а потом убираем tzinfo (сохраняем численное UTC-время)
+    return dt.astimezone(timezone.utc).replace(tzinfo=None)
+
 async def add_wallet(pool, user_id, username):
-    now = datetime.now() - timedelta(hours=1)
+    now = datetime.utcnow() - timedelta(hours=1)
     async with pool.acquire() as conn:
         await conn.execute("""
-                INSERT INTO wallets (user_id, username, balance, updated_at)
-                VALUES ($1, $2, $3, $4)
-                ON CONFLICT (user_id) DO NOTHING
-            """, user_id, username, 0, now)
+            INSERT INTO wallets (user_id, username, balance, updated_at)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (user_id) DO NOTHING
+        """, user_id, username, 0, now)
 
+async def get_balance(pool, user_id: int):
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT balance FROM wallets WHERE user_id = $1",
+            user_id
+        )
 
 async def claim_money(pool, user_id: int, username: str):
     async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT balance, updated_at FROM wallets WHERE user_id = $1", user_id)
+        row = await conn.fetchrow(
+            "SELECT balance, updated_at FROM wallets WHERE user_id = $1", user_id
+        )
 
-        now =  datetime.now()
+        now = datetime.utcnow()  # было datetime.now()
 
         if user_id in ADMIN_LIST:
             amount = random.randint(25, 75)
             await conn.execute("""
-                            UPDATE wallets
-                            SET balance = balance + $1, updated_at = $2, username = $3
-                            WHERE user_id = $4
-                        """, amount, now, username, user_id)
-
+                UPDATE wallets
+                SET balance = balance + $1, updated_at = $2, username = $3
+                WHERE user_id = $4
+            """, amount, now, username, user_id)
             return f"О мой великий создатель, держи {amount} докидолларов!"
 
-
         if row:
-            updated_at = row["updated_at"]
+            updated_at = to_utc_naive(row["updated_at"])
+
             if updated_at and now - updated_at < timedelta(hours=1):
                 return random.choice(early_reply)
 
@@ -48,7 +64,6 @@ async def claim_money(pool, user_id: int, username: str):
                 SET balance = balance + $1, updated_at = $2, username = $3
                 WHERE user_id = $4
             """, amount, now, username, user_id)
-
             return f"Держи, вот тебе {amount} докидолларов!"
 
         else:
@@ -57,7 +72,6 @@ async def claim_money(pool, user_id: int, username: str):
                 INSERT INTO wallets (user_id, username, balance, updated_at)
                 VALUES ($1, $2, $3, $4)
             """, user_id, username, amount, now)
-
             return f"Держи, вот тебе {amount} докидолларов!"
 
 async def give_money(pool, user_id1: int, user_id2: int, username_rec: str, amount: int):
@@ -127,3 +141,16 @@ async def give_money_(message: Message, **data):
         amount=amount
     )
     await message.reply(response)
+
+@router.message(F.text.regexp(r"(?i)^моника баланс$"))
+async def check_balance(message: Message, **data):
+    pool = data["pool"]
+
+    user_id = message.from_user.id
+
+    balance = await get_balance(pool, user_id)
+
+    if balance is None:
+        await message.reply("У тебя ещё нет кошелька.")
+    else:
+        await message.reply(f"Твой баланс: {balance} докидолларов.")

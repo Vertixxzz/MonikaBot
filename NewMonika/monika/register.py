@@ -1,22 +1,58 @@
-from aiogram import Dispatcher
+# monika/register.py
+from __future__ import annotations
+
+import logging
+from aiogram import Dispatcher, Router
+
 from .handlers.greetings import register_greetings
-from NewMonika.monika.handlers.remember import router as remember_router
-from NewMonika.monika.handlers.weather import router as weather_router
-from NewMonika.monika.handlers.spam import router as spam_router
-from NewMonika.monika.handlers.antiiris import router as antiiris_router
-from NewMonika.monika.handlers.silence import router as silence_router
-from NewMonika.monika.handlers.warn import router as warn_router
-from NewMonika.monika.handlers.ecomoniks import router as ec_router
-from NewMonika.monika.handlers.speech_rec import router as sr_router
+from .handlers.alive import router as alive_router
+from .handlers.remember import router as remember_router
+from .handlers.weather import router as weather_router
+from .handlers.spam import router as spam_router
+from .handlers.antiiris import router as antiiris_router
+from .handlers.silence import router as silence_router
+from .handlers.warn import router as warn_router
+from .handlers.ecomoniks import router as ec_router
+from .handlers.speech_rec import router as sr_router  # подключишь, когда нужно
+from .handlers.translate import router as translate_router
+from .handlers.dinki import router as dinki_router
+from .handlers.beer import router as beer_router
+from .handlers.duels import router as duel_router
+from .handlers.day import router as day_router
+from .handlers.garem import router as garem_router
+from .handlers.help import router as help_router
+from .handlers.brutemute import router as anton_router
+logger = logging.getLogger(__name__)
 
-def register_monika_middlewares(dp: Dispatcher):
-    pass
+# Список всех Router'ов проекта, которые нужно подключить
+_ROUTERS: tuple[Router, ...] = (
+    anton_router,
+    help_router,
+    garem_router,
+    duel_router,
+    day_router,
+    beer_router,
+    dinki_router,
+    sr_router,
+    translate_router,
+    alive_router,
+    ec_router,
+    warn_router,
+    remember_router,
+    antiiris_router,
+    silence_router,
+    weather_router,
+    spam_router,  # раскомментируй, когда будет готов
+)
 
-def register_monika_handlers(dp: Dispatcher):
+def register_monika_middlewares(dp: Dispatcher) -> None:
+    return None
+
+def register_monika_handlers(dp: Dispatcher) -> None:
+    # Хендлеры, у которых есть функция вида register_*
     register_greetings(dp)
-    dp.include_router(ec_router)
-    dp.include_router(warn_router)
-    dp.include_router(remember_router)
-    dp.include_router(antiiris_router)
-    dp.include_router(silence_router)
-    # dp.include_router(sr_router)
+
+    for router in _ROUTERS:
+        dp.include_router(router)
+
+    logger.info("Handlers registered (functions: 1, routers: %d)", len(_ROUTERS))

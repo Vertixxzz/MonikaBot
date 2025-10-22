@@ -1,19 +1,3 @@
-# main_fixed.py
-"""
-Переписанный main для NewMonika.
-Цель: убрать типичные косяки с регистрацией роутеров, middleware и shutdown,
-помочь дебажить (debug router) и аккуратно закрывать ресурсы.
-
-Как пользоваться:
-- Заменяй этот файл вместо старого main.py (или сохраняй рядом и запускай).
-- Для отладки установи DEBUG = True (по умолчанию True).
-- В handler'ах лучше принимать bot через DI: async def handler(message: Message, bot: Bot)
-  или импортировать объект monika_bot из этого модуля (см. globals()["monika_bot"]).
-
-Не менял ваш register_monika_handlers/модули — они должны оставаться такими же.
-Если у тебя есть циклические импорты — лучше поправить хэндлеры, чтобы бот приходил через параметр.
-"""
-
 import asyncio
 import logging
 import signal
@@ -24,14 +8,12 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 import aioconsole
 
-# локальные импорты проекта
-from cfg import MONIKATOKEN, TARGET_CHAT_ID
+from cfg import bot, TARGET_CHAT_ID
 from monika.register import register_monika_handlers
 from NewMonika.common.utils.db import connect_db
 from monika.middlewares.pool import PoolMiddleware
 
-# Включи DEBUG на время отладки — потом можешь выключить
-DEBUG = True
+DEBUG = False
 
 logging.basicConfig(
     level=logging.DEBUG if DEBUG else logging.INFO,
@@ -41,9 +23,6 @@ logger = logging.getLogger("monika.main")
 
 
 async def send_console_messages(bot: Bot):
-    """Асинхронная консоль для отправки сообщений в группу.
-    Можно отключить просто не запуская таск или поставив DEBUG=False.
-    """
     try:
         while True:
             message = await aioconsole.ainput("Введите сообщение для отправки в группу: ")
@@ -61,19 +40,12 @@ async def send_console_messages(bot: Bot):
 
 
 async def main():
-    # Создаём объект бота
-    bot = Bot(token=MONIKATOKEN)
-
-    # Экспорт объекта бота в глобальную область имен — если в твоих хэндлерах
-    # кто-то делает "from main_fixed import monika_bot as bot" — это работает.
-    # Но лучше использовать DI (handler(..., bot: Bot)).
     globals()["monika_bot"] = bot
 
-    # Диспетчер с in-memory storage. MemoryStorage подходит для большинства случаев.
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
 
-    # DEBUG router — логирует все приходящие сообщения, помогает понять, доходят ли апдейты
+    # DEBUG router - логирует все приходящие сообщения, помогает понять, доходят ли апдейты
     if DEBUG:
         debug_router = Router()
 
@@ -116,7 +88,6 @@ async def main():
         try:
             loop.add_signal_handler(s, _cancel_tasks)
         except NotImplementedError:
-            # На windows loop.add_signal_handler может быть не реализован
             pass
 
     try:
@@ -124,7 +95,6 @@ async def main():
     except asyncio.CancelledError:
         logger.info("Main tasks cancelled, shutting down")
     finally:
-        # Cleanup resources
         try:
             await bot.session.close()
         except Exception:

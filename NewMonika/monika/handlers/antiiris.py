@@ -3,7 +3,6 @@ from aiogram.types import ChatMemberUpdated
 from aiogram.enums.chat_member_status import ChatMemberStatus
 import logging
 
-# 🎯 Целевые ID
 TARGET_USER_ID = 6335949488
 TARGET_CHAT_ID = -1002662985482
 
@@ -33,8 +32,8 @@ async def on_user_joined(event: ChatMemberUpdated, bot: Bot):
             )
             await bot.send_message(
                 chat_id=event.chat.id,
-                text=f"наебали."
+                text=f""
             )
         except Exception as e:
-            logging.exception("❌ Ошибка при назначении администратора")
-            await bot.send_message(chat_id=event.chat.id, text=f"не наебали")
+            logging.exception("Ошибка при назначении администратора")
+            await bot.send_message(chat_id=event.chat.id, text=f"мухехехехе")

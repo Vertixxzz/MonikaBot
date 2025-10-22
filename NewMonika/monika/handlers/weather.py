@@ -10,7 +10,7 @@ async def get_weather(city: str) -> str:
         url = f"http://api.weatherapi.com/v1/forecast.json?key={WEATHER_API_KEY}&q={city}&days=2&lang=ru"
         async with session.get(url) as resp:
             if resp.status != 200:
-                return "не существует такого города далбаеб."
+                return "Такого города не существует"
 
             data = await resp.json()
 
@@ -19,7 +19,7 @@ async def get_weather(city: str) -> str:
             forecast = data["forecast"]["forecastday"][1]["day"]  # Завтра
             comment = ""
             if current["temp_c"] > 25:
-                comment = "Ебать жара я хуею"
+                comment = "Капец у вас жарко.."
 
             response = (
                 f"Погода в *{location}*\n"
@@ -40,7 +40,7 @@ async def get_weather(city: str) -> str:
 async def handle_weather(message: types.Message):
     city = message.text[len("моника погода "):].strip()
     if not city:
-        await message.reply("ты можешь сука город нормально написать блядина", parse_mode="Markdown")
+        await message.reply("Я не вижу этот город", parse_mode="Markdown")
         return
 
     get_weather

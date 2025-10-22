@@ -8,3 +8,14 @@ BAN_LIST = [6708047520, 1786622038]
 TARGET_CHAT_ID = -1002662985482
 ADMIN_LIST = [8038388517, 1185410135] #провиденс саша вертикс
 BOOSTERS_LIST = [1939299030] #рейтек димасик
+bot = Bot(token=MONIKATOKEN)
+
+DB_CONFIG = {
+    "user": os.getenv("DB_USER", "postgres"),
+    "password": os.getenv("DB_PASS", "123"),
+    "database": os.getenv("DB_NAME", "monikadb"),
+    "host": os.getenv("DB_HOST", "localhost"),
+    "port": os.getenv("DB_PORT", "5432"),
+}
+
+DB_SCHEMA = os.getenv("DB_SCHEMA", "Monikasch")
