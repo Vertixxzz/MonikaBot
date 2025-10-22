@@ -5,4 +5,4 @@ router = Router()
 
 @router.message(F.text.lower() == "ты жива?")
 async def alive(message: Message):
-    await message.reply("да вертекс я жива")
+    await message.reply("да, я жива")

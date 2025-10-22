@@ -8,7 +8,7 @@ ALIASES = {
     "англ": "en", "ен": "en",
     "рус": "ru",  "ру": "ru",
     "яп": "ja",   "кит": "zh-cn",
-    "py": "ru",   # если хочешь поддержать 'py' как 'ru'
+    "py": "ru"
 }
 
 def normalize_lang(tok: str) -> str:

@@ -1,7 +1,6 @@
 from aiogram import Router
 from aiogram.types import Message
-
-TARGET_USER_ID = 7883884332
+from NewMonika/cfg.py import TARGET_USER_ID
 
 router = Router()
 

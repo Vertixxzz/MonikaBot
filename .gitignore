@@ -1,0 +1,13 @@
+# venv / IDE / bytecode
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.idea/
+.vscode/
+
+# secrets
+.env
+cfg.py
+**/cfg.py
