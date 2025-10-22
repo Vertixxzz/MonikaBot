@@ -10,7 +10,7 @@ import aioconsole
 
 from cfg import bot, TARGET_CHAT_ID
 from monika.register import register_monika_handlers
-from NewMonika.common.utils.db import connect_db
+from common.utils.db import connect_db
 from monika.middlewares.pool import PoolMiddleware
 
 DEBUG = False

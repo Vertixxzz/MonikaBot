@@ -4,7 +4,7 @@ from aiogram.filters import Command
 from aiogram.utils.markdown import hbold
 from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
 from common.utils.db import add_warning, get_warnings, clear_warnings, get_user_id_by_username
-from NewMonika.common.utils.db import remove_one_warning
+from common.utils.db import remove_one_warning
 from aiogram.types import ChatPermissions
 
 
