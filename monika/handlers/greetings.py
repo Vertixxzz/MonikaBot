@@ -5,7 +5,7 @@ from aiogram.filters import Command
 async def monika_greeting(message: Message):
     await message.answer(
         "Привеееет! Я Моника!\n\n"
-        "Если я туплю - это не баг, это мои создатели олени!\n\n"
+        "Если я туплю - это не баг, это мой создатели олень!\n\n"
         "Я только только создаюсь, впереди нас ждет очень много крутого",
         parse_mode="Markdown"
     )

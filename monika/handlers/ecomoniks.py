@@ -58,6 +58,16 @@ async def monika_claim_money(message: Message, pool):
     await add_balance(pool, user_id, chat_id, username, amount)
     await message.reply(f"Держи, вот тебе {amount} докидолларов!")
 
+@router.message(F.text.lower().startswith("моника баланс"))
+async def check_balance(message: Message, pool):
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+    balance = await get_balance(pool, user_id, chat_id)
+    if balance is None or balance <= 0:
+        await message.reply("У тебя нету денег")
+        return
+    else:
+        await message.reply(f"У тебя на счету {balance} докидолларов!")
 
 @router.message(F.text.lower().startswith("дать"))
 async def give_money_handler(message: Message, pool):

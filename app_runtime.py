@@ -10,7 +10,7 @@ from cfg import (
     bot, TARGET_CHAT_ID, HOST, PORT,
     WEBHOOK_URL, WEBHOOK_PATH, SECRET_TOKEN,
 )
-from monika.register import register_monika_handlers
+from monika.monika_register import register_monika_handlers
 from common.utils.db import connect_db
 from monika.middlewares.pool import PoolMiddleware
 

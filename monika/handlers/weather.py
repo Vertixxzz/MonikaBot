@@ -1,40 +1,20 @@
 import aiohttp
 from aiogram import Router, types
+from common.utils.links import get_bot
+from cfg import WEATHER_API_KEY
 
 router = Router()
 
-WEATHER_API_KEY = "ccf1d2a873dc44d7937123420252905"
-
-async def get_weather(city: str) -> str:
+async def get_weather(city: str):
     async with aiohttp.ClientSession() as session:
-        url = f"http://api.weatherapi.com/v1/forecast.json?key={WEATHER_API_KEY}&q={city}&days=2&lang=ru"
+        url = (
+            f"http://api.weatherapi.com/v1/forecast.json"
+            f"?key={WEATHER_API_KEY}&q={city}&days=2&lang=ru"
+        )
         async with session.get(url) as resp:
             if resp.status != 200:
-                return "Такого города не существует"
-
-            data = await resp.json()
-
-            location = data["location"]["name"]
-            current = data["current"]
-            forecast = data["forecast"]["forecastday"][1]["day"]  # Завтра
-            comment = ""
-            if current["temp_c"] > 25:
-                comment = "Капец у вас жарко.."
-
-            response = (
-                f"Погода в *{location}*\n"
-                f"Сейчас: *{current['temp_c']}°C* (ощущается как *{current['feelslike_c']}°C*)\n"
-                f"{current['condition']['text']}\n"
-                f"Ветер: {current['wind_kph']} км/ч\n"
-                f"Влажность: {current['humidity']}%\n\n"
-                f"*Прогноз на завтра:*\n"
-                f"Днём: *{forecast['avgtemp_c']}°C*, "
-                f"осадки: *{forecast['daily_chance_of_rain']}%*\n"
-                f"{forecast['condition']['text']}\n"
-                f"{comment}"
-            )
-
-            return response
+                return None
+            return await resp.json()
 
 @router.message(lambda msg: msg.text and msg.text.lower().startswith("моника погода "))
 async def handle_weather(message: types.Message):
@@ -43,8 +23,34 @@ async def handle_weather(message: types.Message):
         await message.reply("Я не вижу этот город", parse_mode="Markdown")
         return
 
-    get_weather
+    data = await get_weather(city)
+    if not data:
+        await message.reply("Такого города не существует", parse_mode="Markdown")
+        return
 
-    weather_report = await get_weather(city)
+    location = data["location"]["name"]
+    current = data["current"]
+    forecast = data["forecast"]["forecastday"][1]["day"]
 
-    await message.reply(weather_report, parse_mode="Markdown")
+    comment = "Капец у вас жарко.." if current["temp_c"] > 25 else ""
+
+    response = (
+        f"Погода в *{location}*\n"
+        f"Сейчас: *{current['temp_c']}°C* (ощущается как *{current['feelslike_c']}°C*)\n"
+        f"{current['condition']['text']}\n"
+        f"Ветер: {current['wind_kph']} км/ч\n"
+        f"Влажность: {current['humidity']}%\n\n"
+        f"*Прогноз на завтра:*\n"
+        f"Днём: *{forecast['avgtemp_c']}°C*, осадки: *{forecast['daily_chance_of_rain']}%*\n"
+      f"{forecast['condition']['text']}\n"
+        f"{comment}"
+    )
+    await message.reply(response, parse_mode="Markdown")
+
+    if current["temp_c"] < -5:
+        sayori = get_bot("sayori")
+        if sayori:
+            try:
+                await sayori.send_message(message.chat.id, "ужас как холодно...")
+            except Exception as e:
+                print("Ошибка при сообщении Сайори:", e)

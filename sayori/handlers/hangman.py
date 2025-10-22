@@ -1,15 +1,17 @@
 from aiogram import Router, F
 from aiogram.types import Message
+from common.utils.links import get_bot
+from common.db.economics import get_balance, add_balance
 import random
+import asyncio
 
 router = Router()
 
-# Хранилище игр: chat_id -> {word, guessed, fails}
-games = {}
+games: dict[int, dict] = {}
 
 WORDS = [
-    "монолит", "сайори", "монетка", "пирожок", "дружба", "поцелуй",
-    "весна", "тревога", "котик", "сервер", "объятие", "печенье"
+    "монолит", "сайори", "монетка", "дружба", "поцелуй", "депрессия", "кухня", "счастье"
+    "весна", "сервер", "объятие", "печенье", "котик", "суицид","ывлатоп","цхххххх"
 ]
 
 HANGMAN = [
@@ -23,75 +25,129 @@ HANGMAN = [
     "```\n O\n/|\\\n/ \\\n====```",
 ]
 
-
-def get_mask(word: str, guessed: set[str]) -> str:
+def mask(word: str, guessed: set[str]) -> str:
     return " ".join(ch if ch in guessed else "_" for ch in word)
 
+@router.message(F.text.lower().in_({"сайори повешайся", "сайори виселица"}))
+async def start_hangman(message: Message, pool):
+    chat_id = message.chat.id
 
-@router.message(F.text.lower().in_({"/виселица", "виселица"}))
-async def start_hangman(message: Message):
-    """Начинает новую игру"""
-    if message.chat.id in games:
-        await message.reply("Эй, у нас уже идёт игра! 😅")
+    if chat_id in games:
+        await message.reply("Эй, у нас уже идёт игра!")
         return
 
     word = random.choice(WORDS)
-    games[message.chat.id] = {"word": word, "guessed": set(), "fails": 0}
+    state = {"word": word, "guessed": set(), "fails": 0, "monika_offer": False}
+    games[chat_id] = state
 
-    masked = get_mask(word, set())
-    await message.answer(
-        f"Начнём игру в виселицу! 🎀\n"
-        f"{masked}\n\n"
-        "Пиши буквы по одной. Только не ошибайся слишком часто... 😰"
-    )
+    masked = mask(word, state["guessed"])
 
+    if random.random() < 0.20:
+        state["monika_offer"] = True
+        await message.answer(
+            f"Начнём игру в виселицу! \n{masked}\n\n"
+            "Пиши буквы по одной."
+        )
+        monika = get_bot("monika")
+        if monika:
+            try:
+                await asyncio.sleep(0.6)
+                await monika.send_message(
+                    chat_id,
+                    'эй. я тут! хочешь подскажу первую букву за 50 докидолларов? '
+                    'просто напиши "подсказка"'
+                )
+            except Exception:
+                await message.answer(
+                    'эм… кажется, Моника не может писать сюда. '
+                    'но если бы могла - она бы предложила "подсказка" за 50 '
+                )
+    else:
+        await message.answer(
+            f"Начнём игру в виселицу!\n{masked}\n\n"
+            "Пиши буквы по одной.\n"
+        )
 
-@router.message(F.text.regexp("^[а-яА-Яa-zA-Z]$"))
-async def guess_letter(message: Message):
-    """Обрабатывает ввод буквы"""
-    game = games.get(message.chat.id)
-    if not game:
-        return  # игры нет
-
-    letter = message.text.lower()
-    if letter in game["guessed"]:
-        await message.reply("Ты уже пробовал эту букву~ 😅")
+@router.message(F.text.lower() == "подсказка")
+async def ask_hint(message: Message, pool):
+    chat_id = message.chat.id
+    state = games.get(chat_id)
+    if not state:
         return
 
-    game["guessed"].add(letter)
-    word = game["word"]
+    if not state.get("monika_offer"):
+        await message.reply("хм? я не даю подсказок, хехе")
+        return
+
+    user = message.from_user
+    if not user:
+        return
+    user_id = user.id
+    username = user.username or user.first_name
+
+    balance = await get_balance(pool, user_id, chat_id)
+    if balance < 50:
+        await message.reply("у тебя настолько все плохо с.. бюджетом? надо пить меньше пива, друг")
+        return
+
+    await add_balance(pool, user_id, chat_id, username, -50)
+
+    word = state["word"]
+    first = word[0]
+    state["guessed"].add(first)
+    masked = mask(word, state["guessed"])
+
+    monika = get_bot("monika")
+    if monika:
+        try:
+            await monika.send_message(
+                chat_id,
+                f"первая буква — **{first.upper()}**. никому не говори"
+            )
+        except Exception:
+            await message.answer(f"первая буква — **{first.upper()}**")
+
+@router.message(F.text.regexp(r"^[а-яА-Яa-zA-Z]$"))
+async def guess_letter(message: Message, pool):
+    chat_id = message.chat.id
+    state = games.get(chat_id)
+    if not state:
+        return
+
+    letter = (message.text or "").lower()
+    if letter in state["guessed"]:
+        await message.reply("ты уже пробовал эту букву~")
+        return
+
+    state["guessed"].add(letter)
+    word = state["word"]
 
     if letter not in word:
-        game["fails"] += 1
-        comment = random.choice([
-            "Ой... не то 😖",
-            "Хах, не угадал~",
-            "Нет, такой буквы нет 😔",
-            "Эм... попробуй другую?",
-        ])
+        state["fails"] += 1
+        comment = random.choice(["ой... не то", "не угадал~", "нет такой буквы "])
     else:
-        comment = random.choice([
-            "О! Правильно! 🌸",
-            "Ура, буква на месте!",
-            "Вот теперь я начинаю верить в тебя~ 💫",
-        ])
+        comment = random.choice(["правильно!", "отлично идёшь!", "так держать!"])
 
-    masked = get_mask(word, game["guessed"])
-    fails = game["fails"]
+    masked = mask(word, state["guessed"])
+    fails = state["fails"]
+    max_fails = len(HANGMAN) - 1
 
-    if set(word) <= game["guessed"]:
+    # победа
+    if set(word) <= state["guessed"]:
         await message.answer(
-            f"{masked}\n✨ Победа! ✨\n"
-            f"Ты спас маленького человечка! (и меня тоже чуть-чуть 🌸)"
+            f"{masked}\n Победа! \nТы спас человечка!!"
         )
-        games.pop(message.chat.id)
-    elif fails >= len(HANGMAN) - 1:
-        await message.answer(
-            f"{HANGMAN[-1]}\n"
-            f"😢 Проиграли...\n"
-            f"Слово было: *{word}*"
-        )
-        games.pop(message.chat.id)
-    else:
-        await message.answer(
-            f"{HANGMAN[fails]}\n{masked}\n{comment}\nОшибки: {fails}/{len(HANGMAN) - 1}"
+
+        user = message.from_user
+        if user:
+            await add_balance(pool, user.id, chat_id, user.username or user.first_name, +100)
+            await message.answer("ты получаешь **+100** докидолларов за победу! ")
+        games.pop(chat_id, None)
+        return
+
+    if fails >= max_fails:
+        await message.answer(f"{HANGMAN[-1]}\nПроиграли...\nСлово было: *{word}*")
+        games.pop(chat_id, None)
+        return
+
+    await message.answer(f"{HANGMAN[fails]}\n{masked}\n{comment}\nОшибки: {fails}/{max_fails}")

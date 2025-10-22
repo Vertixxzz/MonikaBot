@@ -8,7 +8,6 @@ from .handlers.greetings import register_greetings
 from .handlers.stats import router as stats_router
 from .handlers.help import router as help_router
 from .handlers.garem import router as garem_router
-from .handlers.duels import router as duel_router
 from .handlers.day import router as day_router
 from .handlers.beer import router as beer_router
 from .handlers.dinki import router as dinki_router
@@ -36,24 +35,23 @@ def register_monika_handlers(dp: Dispatcher) -> None:
     register_greetings(dp)
 
     routers: tuple[Router, ...] = (
-        stats_router.copy(),
-        help_router.copy(),
-        garem_router.copy(),
-        duel_router.copy(),
-        day_router.copy(),
-        beer_router.copy(),
-        dinki_router.copy(),
-        sr_router.copy(),
-        translate_router.copy(),
-        alive_router.copy(),
-        ec_router.copy(),
-        warn_router.copy(),
-        remember_router.copy(),
-        antiiris_router.copy(),
-        silence_router.copy(),
-        weather_router.copy(),
-        spam_router.copy(),
-        anton_router.copy(),
+        weather_router,
+        stats_router,
+        help_router,
+        garem_router,
+        day_router,
+        beer_router,
+        dinki_router,
+        sr_router,
+        translate_router,
+        alive_router,
+        ec_router,
+        warn_router,
+        remember_router,
+        antiiris_router,
+        silence_router,
+        spam_router,
+        anton_router,
     )
 
     for r in routers:
