@@ -1,6 +1,6 @@
 from aiogram import Router, F
 from aiogram.types import Message
-from common.utils.db import db_get_today_phrase,db_pick_random_phrase, db_save_today_phrase
+from common.db.myday import db_get_today_phrase,db_pick_random_phrase, db_save_today_phrase
 router = Router()
 
 @router.message(F.text.func(lambda t: t and t.lower().startswith("моника мой день")))

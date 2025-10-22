@@ -13,7 +13,7 @@ from cfg import (
     HOST, PORT, RUN_MODE
 )
 from monika.register import register_monika_handlers
-from common.utils.db import connect_db
+from common.db.core import connect_db
 from monika.middlewares.pool import PoolMiddleware
 
 

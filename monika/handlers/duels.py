@@ -1,6 +1,6 @@
 from aiogram import F, Router
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
-from common.utils.db import get_user_id_by_username
+from common.db.utilities import get_user_id_by_username
 import redis.asyncio as redis
 import random
 

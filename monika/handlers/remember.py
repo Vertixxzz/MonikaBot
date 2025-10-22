@@ -1,7 +1,7 @@
 import re
 from aiogram import Router, F
 from aiogram.types import Message
-from common.utils.db import save_advice, get_random_advice
+from common.db.advice import save_advice, get_random_advice
 
 router = Router()
 

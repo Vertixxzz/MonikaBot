@@ -3,8 +3,8 @@ from aiogram.types import Message
 from aiogram.filters import Command
 from aiogram.utils.markdown import hbold
 from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
-from common.utils.db import add_warning, get_warnings, clear_warnings, get_user_id_by_username
-from common.utils.db import remove_one_warning
+from common.db.warnings import add_warning, get_warnings, clear_warnings, remove_one_warning
+from common.db.utilities import get_user_id_by_username
 from aiogram.types import ChatPermissions
 
 
