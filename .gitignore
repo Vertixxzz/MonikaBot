@@ -10,4 +10,7 @@ __pycache__/
 # secrets
 .env
 cfg.py
-cfg.py
+
+# system
+.DS_Store
+Thumbs.db
