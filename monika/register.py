@@ -1,4 +1,3 @@
-# monika/register.py
 from __future__ import annotations
 
 import logging
@@ -13,7 +12,7 @@ from .handlers.antiiris import router as antiiris_router
 from .handlers.silence import router as silence_router
 from .handlers.warn import router as warn_router
 from .handlers.ecomoniks import router as ec_router
-from .handlers.speech_rec import router as sr_router  # подключишь, когда нужно
+from .handlers.speech_rec import router as sr_router
 from .handlers.translate import router as translate_router
 from .handlers.dinki import router as dinki_router
 from .handlers.beer import router as beer_router
@@ -26,7 +25,6 @@ logger = logging.getLogger(__name__)
 
 # Список всех Router'ов проекта, которые нужно подключить
 _ROUTERS: tuple[Router, ...] = (
-    anton_router,
     help_router,
     garem_router,
     duel_router,
@@ -42,7 +40,7 @@ _ROUTERS: tuple[Router, ...] = (
     antiiris_router,
     silence_router,
     weather_router,
-    spam_router,  # раскомментируй, когда будет готов
+    spam_router,
 )
 
 def register_monika_middlewares(dp: Dispatcher) -> None:

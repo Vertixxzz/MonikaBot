@@ -8,8 +8,8 @@ router = Router()
 @router.message(F.text.regexp(r"(?i)^дыньки$"))
 async def send_dinki(message: Message):
     await message.reply("дыньки")
-    photo1 = FSInputFile("NewMonika/common/pictures/dinkijpg.jpg")
-    photo2 = FSInputFile("NewMonika/common/pictures/dinki.jpg")
+    photo1 = FSInputFile("common/pictures/dinkijpg.jpg")
+    photo2 = FSInputFile("common/pictures/dinki.jpg")
     rand = random.randint(1, 2)
     if rand == 1:
         await bot.send_photo(

@@ -19,6 +19,6 @@ async def start_sending_images(message: types.Message, bot: Bot):
     await message.answer(f"{hbold('ну что же.. узрите')}", parse_mode=ParseMode.HTML)
     await asyncio.sleep(7)
     while True:
-        photo = FSInputFile("C:/Users/Саша/PycharmProjects/NewMonika/NewMonika/monika/handlers/image.png")
+        photo = FSInputFile("common/pictures/image.png")
         await bot.send_photo(chat_id=message.chat.id, photo=photo)
         await asyncio.sleep(SEND_INTERVAL_MS / 1000)

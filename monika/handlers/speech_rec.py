@@ -13,7 +13,7 @@ import ffmpeg
 
 router = Router()
 
-MODEL = "NewMonika/common/sttmodel/vosk-model-small-ru-0.22"
+MODEL = "common/sttmodel/vosk-model-small-ru-0.22"
 model = Model(MODEL)
 
 async def recognition(file_path):
