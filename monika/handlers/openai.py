@@ -38,7 +38,7 @@ async def monika_ai_handler(message: types.Message):
         return
 
     memory_context = [
-        {"role": "system", "content": f"Пользователь ранее говорил: {m}"}
+        {"role": "system", "content": f"{m}"}
         for m in MEMORY
     ]
 

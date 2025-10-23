@@ -143,7 +143,7 @@ async def on_shot(cb: CallbackQuery, pool):
         )
 
         user = cb.from_user
-        await add_balance(pool, user.id, chat_id, user.username or user.first_name, 25)
+        await add_balance(pool, user.id, user.username or user.first_name, 25)
         await cb.message.answer(f"{user.first_name} получает +25 докидолларов! ")
 
         await delete_duel(pool, chat_id, msg_id)

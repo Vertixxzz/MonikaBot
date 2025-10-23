@@ -23,6 +23,7 @@ from .handlers.weather import router as weather_router
 from .handlers.spam import router as spam_router
 from .handlers.brutemute import router as anton_router
 from .handlers.openai import router as openai_router
+from .handlers.promo import router as promo_router
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ def register_monika_handlers(dp: Dispatcher) -> None:
     register_greetings(dp)
 
     routers: tuple[Router, ...] = (
+        promo_router,
         openai_router,
         weather_router,
         stats_router,

@@ -15,13 +15,13 @@ async def handle_give_beer(message: types.Message, pool):
     price = 100
     beer_amount = round(random.uniform(1.0, 5.0), 2)
 
-    money = await get_balance(pool, user_id, chat_id)   # <-- добавили chat_id
+    money = await get_balance(pool, user_id)
     if money < price:
         await message.reply("У тебя недостаточно средств!")
         return
 
     try:
-        await add_balance(pool, user_id, chat_id, username, -price)  # <-- chat_id
+        await add_balance(pool, user_id, username, -price)
         await drink_beer(pool, user_id, chat_id, beer_amount)
         await message.reply(f"Налила {beer_amount} пива. Приятного!")
     except Exception as e:

@@ -85,12 +85,12 @@ async def ask_hint(message: Message, pool):
     user_id = user.id
     username = user.username or user.first_name
 
-    balance = await get_balance(pool, user_id, chat_id)
+    balance = await get_balance(pool, user_id)
     if balance < 50:
         await message.reply("у тебя настолько все плохо с.. бюджетом? надо пить меньше пива, друг")
         return
 
-    await add_balance(pool, user_id, chat_id, username, -50)
+    await add_balance(pool, user_id, username, -50)
 
     word = state["word"]
     first = word[0]
@@ -140,7 +140,7 @@ async def guess_letter(message: Message, pool):
 
         user = message.from_user
         if user:
-            await add_balance(pool, user.id, chat_id, user.username or user.first_name, +100)
+            await add_balance(pool, user.id, user.username or user.first_name, +100)
             await message.answer("ты получаешь **+100** докидолларов за победу! ")
         games.pop(chat_id, None)
         return
