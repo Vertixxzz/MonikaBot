@@ -31,10 +31,7 @@ logger = logging.getLogger("multibot.main")
 
 # ================= BUILD DISPATCHERS =================
 async def build_dispatchers():
-    """
-    Создаёт два Bot/Dispatcher, общий pool, вешает middlewares/handlers.
-    Возвращает: (monika_bot, monika_dp, sayori_bot, sayori_dp)
-    """
+
     monika_bot = Bot(token=MONIKATOKEN)
     sayori_bot = Bot(token=SAYORITOKEN)
 
@@ -80,12 +77,7 @@ async def build_dispatchers():
 
 # ================= POLLING =================
 async def build_polling_side():
-    """
-    Билдер для режима polling: чистит вебхуки у ОБОИХ ботов,
-    чтобы не было конфликтов, и возвращает объекты.
-    """
     monika_bot, monika_dp, sayori_bot, sayori_dp = await build_dispatchers()
-    # удаляем вебхуки у обоих
     for bot, name in ((monika_bot, "monika"), (sayori_bot, "sayori")):
         try:
             await bot.delete_webhook(drop_pending_updates=True)
@@ -96,7 +88,6 @@ async def build_polling_side():
 
 
 async def _console(bot: Bot, label: str):
-    """Простейшая консольная отправка в TARGET_CHAT_ID (опционально)."""
     try:
         from aioconsole import ainput  # type: ignore
     except Exception:
@@ -109,7 +100,7 @@ async def _console(bot: Bot, label: str):
                 break
             if msg.strip():
                 try:
-                    await bot.send_message(chat_id=TARGET_CHAT_ID, text=f"[{label}] {msg}")
+                    await bot.send_message(chat_id=TARGET_CHAT_ID, text=f" {msg}")
                 except Exception:
                     logger.exception("Не удалось отправить сообщение из консоли")
     except asyncio.CancelledError:
@@ -117,10 +108,6 @@ async def _console(bot: Bot, label: str):
 
 
 async def run_polling_both():
-    """
-    Параллельный polling для Monika и Sayori.
-    Корректно ловит SIGINT/SIGTERM и завершает обе задачи.
-    """
     monika_bot, monika_dp, sayori_bot, sayori_dp = await build_polling_side()
 
     tasks = [
