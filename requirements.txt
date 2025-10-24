@@ -1,0 +1,6 @@
+aiogram>=3.4.1,<4.0
+fastapi>=0.115.0,<0.116
+uvicorn>=0.30.0,<0.31
+asyncpg>=0.29.0,<0.30
+aiohttp>=3.9.5,<4.0
+python-dotenv>=1.0.1,<2.0
