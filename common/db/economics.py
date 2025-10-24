@@ -43,7 +43,6 @@ async def add_wallet(pool: Pool, user_id: int, username: str):
             ON CONFLICT (user_id) DO NOTHING
         """, user_id, username)
 
-
 async def add_wallet_conn(conn, user_id: int, username: str):
     await conn.execute("""
         INSERT INTO wallets (user_id, username, balance, updated_at)
