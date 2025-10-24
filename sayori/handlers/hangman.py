@@ -1,6 +1,6 @@
 from aiogram import Router, F
 from aiogram.types import Message
-from common.utils.links import get_bot
+from common.utils.links import get_bot_in_chat, BotNotFoundError
 from common.db.economics import get_balance, add_balance
 import random
 import asyncio
@@ -11,7 +11,7 @@ games: dict[int, dict] = {}
 
 WORDS = [
     "монолит", "сайори", "монетка", "дружба", "поцелуй", "депрессия", "кухня", "счастье",
-    "весна", "сервер", "объятие", "печенье", "котик", "суицид","ывлатоп","цхххххх,гидроцефал"
+    "весна", "сервер", "объятие", "печенье", "котик", "суицид", "ывлатоп", "цхххххх,гидроцефал"
 ]
 
 HANGMAN = [
@@ -25,8 +25,10 @@ HANGMAN = [
     "```\n O\n/|\\\n/ \\\n====```",
 ]
 
+
 def mask(word: str, guessed: set[str]) -> str:
     return " ".join(ch if ch in guessed else "_" for ch in word)
+
 
 @router.message(F.text.lower().in_({"сайори повешайся", "сайори виселица"}))
 async def start_hangman(message: Message, pool):
@@ -42,31 +44,34 @@ async def start_hangman(message: Message, pool):
 
     masked = mask(word, state["guessed"])
 
+    # 20% шанс, что появится предложение от Моники
     if random.random() < 0.20:
         state["monika_offer"] = True
         await message.answer(
-            f"Начнём игру в виселицу! \n{masked}\n\n"
+            f"Начнём игру в виселицу!\n{masked}\n\n"
             "Пиши буквы по одной."
         )
-        monika = get_bot("monika")
-        if monika:
-            try:
-                await asyncio.sleep(0.6)
-                await monika.send_message(
-                    chat_id,
-                    'эй. я тут! хочешь подскажу первую букву за 50 докидолларов? '
-                    'просто напиши "подсказка"'
-                )
-            except Exception:
-                await message.answer(
-                    'эм… кажется, Моника не может писать сюда. '
-                    'но если бы могла - она бы предложила "подсказка" за 50 '
-                )
+        try:
+            monika = await get_bot_in_chat("monika", chat_id)
+            await asyncio.sleep(0.6)
+            await monika.send_message(
+                chat_id,
+                'эй. я тут! хочешь подскажу первую букву за 50 докидолларов? '
+                'просто напиши "подсказка"'
+            )
+        except BotNotFoundError:
+            await message.answer(
+                'эм… кажется, Моника не может писать сюда. '
+                'но если бы могла — она бы предложила "подсказка" за 50.'
+            )
+        except Exception as e:
+            print(f"Ошибка при сообщении Моники: {e}")
     else:
         await message.answer(
             f"Начнём игру в виселицу!\n{masked}\n\n"
             "Пиши буквы по одной.\n"
         )
+
 
 @router.message(F.text.lower() == "подсказка")
 async def ask_hint(message: Message, pool):
@@ -82,12 +87,13 @@ async def ask_hint(message: Message, pool):
     user = message.from_user
     if not user:
         return
+
     user_id = user.id
     username = user.username or user.first_name
 
     balance = await get_balance(pool, user_id)
     if balance < 50:
-        await message.reply("у тебя настолько все плохо с.. бюджетом? надо пить меньше пива, друг")
+        await message.reply("у тебя настолько все плохо с бюджетом? надо пить меньше пива, друг.")
         return
 
     await add_balance(pool, user_id, username, -50)
@@ -97,15 +103,17 @@ async def ask_hint(message: Message, pool):
     state["guessed"].add(first)
     masked = mask(word, state["guessed"])
 
-    monika = get_bot("monika")
-    if monika:
-        try:
-            await monika.send_message(
-                chat_id,
-                f"первая буква — **{first.upper()}**. никому не говори"
-            )
-        except Exception:
-            await message.answer(f"первая буква — **{first.upper()}**")
+    try:
+        monika = await get_bot_in_chat("monika", chat_id)
+        await monika.send_message(
+            chat_id,
+            f"первая буква — **{first.upper()}**. никому не говори~"
+        )
+    except BotNotFoundError:
+        await message.answer(f"первая буква — **{first.upper()}**")
+    except Exception as e:
+        print(f"Ошибка при подсказке от Моники: {e}")
+
 
 @router.message(F.text.regexp(r"^[а-яА-Яa-zA-Z]$"))
 async def guess_letter(message: Message, pool):
@@ -145,6 +153,7 @@ async def guess_letter(message: Message, pool):
         games.pop(chat_id, None)
         return
 
+    # проигрыш
     if fails >= max_fails:
         await message.answer(f"{HANGMAN[-1]}\nПроиграли...\nСлово было: *{word}*")
         games.pop(chat_id, None)
