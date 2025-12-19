@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from cfg import ADMIN_LIST
 
 router = Router()
-early_reply = ["Успеется, хапуга.", "Терпение - добродетель.", "Я только недавно давала тебе денег!"]
+early_reply = ["Успеется, хапуга.", "Терпение - добродетель.", "Я только недавно давала тебе денег!","иди нахуй"]
 
 
 def to_utc_naive(dt):

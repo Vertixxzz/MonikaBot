@@ -1,6 +1,5 @@
-
 from aiogram import Router, F
-from aiogram.types import Message
+from aiogram.types import Message, FSInputFile
 from datetime import datetime, timedelta
 import asyncio
 import random
@@ -8,7 +7,10 @@ import random
 router = Router()
 
 TIMEOUT = 300
+PIC_CHANCE = 0.1
 CHANCE = 0.3
+
+hushphoto = FSInputFile("common/pictures/hush.png")
 
 random_messages = [
     "А... а почему все молчат?",
@@ -19,11 +21,12 @@ random_messages = [
     "Тут слишком тихо... подозрительно тихо",
     "Ну хоть кто-нибудь скажите 'привет'",
     "Кажется, я слышу сверчков",
-    "А.. А почему все молчат?"
+    "А.. А почему все молчат?",
 ]
 
 last_message_time = {}
 silence_tasks = {}
+
 
 async def check_silence(chat_id: int, bot):
     while True:
@@ -34,11 +37,17 @@ async def check_silence(chat_id: int, bot):
 
         now = datetime.utcnow()
         if now - last_time > timedelta(seconds=TIMEOUT):
-            print(f"слишком тихо, тыкаю {chat_id}")
+            print(f"Слишком тихо в чате {chat_id}")
+
             if random.random() < CHANCE:
-                message_text = random.choice(random_messages)
-                await bot.send_message(chat_id, message_text)
+                if random.random() < PIC_CHANCE:
+                    await bot.send_photo(chat_id, hushphoto)
+                else:
+                    msg = random.choice(random_messages)
+                    await bot.send_message(chat_id, msg)
+
             last_message_time[chat_id] = datetime.utcnow()
+
 
 @router.message(F.chat.type.in_({"group", "supergroup"}))
 async def handle_group_message(message: Message):
@@ -46,7 +55,10 @@ async def handle_group_message(message: Message):
     last_message_time[chat_id] = datetime.utcnow()
 
     if chat_id not in silence_tasks:
-        print(f"слежу за{chat_id}")
-        silence_tasks[chat_id] = asyncio.create_task(check_silence(chat_id, message.bot))
+        print(f"Начинаю следить за чатом {chat_id}")
+        silence_tasks[chat_id] = asyncio.create_task(
+            check_silence(chat_id, message.bot)
+        )
+
 
 

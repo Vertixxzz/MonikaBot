@@ -117,7 +117,7 @@ async def rp_kill(message: Message):
             monika = await get_bot_in_chat("monika", chat_id)
             await monika.ban_chat_member(chat_id, sender.id)
             await message.reply(f"@{name1} попытался(ась) убить Монику... и теперь исчез навсегда.")
-        except TelegramForbiddenError:
+        except TelegramBadRequest:
             await monika.send_message(chat_id, f"Было бы у меня достаточно прав... @{name1}")
         except BotNotFoundError:
             await message.reply("Ты.. пытаешься убить бота, которого нет в чате? Сильно..")

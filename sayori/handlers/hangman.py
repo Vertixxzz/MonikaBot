@@ -4,6 +4,7 @@ from common.utils.links import get_bot_in_chat, BotNotFoundError
 from common.db.economics import get_balance, add_balance
 import random
 import asyncio
+import re
 
 router = Router()
 
@@ -11,7 +12,7 @@ games: dict[int, dict] = {}
 
 WORDS = [
     "монолит", "сайори", "монетка", "дружба", "поцелуй", "депрессия", "кухня", "счастье",
-    "весна", "сервер", "объятие", "печенье", "котик", "суицид", "ывлатоп", "цхххххх,гидроцефал"
+    "весна", "сервер", "объятие", "печенье", "котик", "суицид", "ывлатоп", "цхххххх","гидроцефал","барабарабарабереберебере"
 ]
 
 HANGMAN = [
@@ -44,7 +45,6 @@ async def start_hangman(message: Message, pool):
 
     masked = mask(word, state["guessed"])
 
-    # 20% шанс, что появится предложение от Моники
     if random.random() < 0.20:
         state["monika_offer"] = True
         await message.answer(
@@ -160,3 +160,39 @@ async def guess_letter(message: Message, pool):
         return
 
     await message.answer(f"{HANGMAN[fails]}\n{masked}\n{comment}\nОшибки: {fails}/{max_fails}")
+
+    @router.message(F.text.lower().regexp(r"^сайори слово\s+(.+)$"))
+    async def guess_whole_word(message: Message, pool):
+        chat_id = message.chat.id
+        state = games.get(chat_id)
+        if not state:
+            await message.reply("мы не играем сейчас~ начни с «сайори виселица».")
+            return
+
+        match = re.match(r"^сайори слово\s+(.+)$", message.text.strip(), re.IGNORECASE)
+        attempt = match.group(1).strip().lower()
+
+        word = state["word"]
+
+        # если угадали
+        if attempt == word:
+            masked = mask(word, set(word))
+            await message.answer(
+                f"{masked}\n\n *НЕВЕРОЯТНО!* Ты угадал целое слово!\n"
+                f"И за это ты получаешь **+200** докидолларов!!"
+            )
+
+            user = message.from_user
+            if user:
+                await add_balance(pool, user.id, user.username or user.first_name, +200)
+
+            games.pop(chat_id, None)
+            return
+
+        # если ошибся
+        await message.answer(
+            f"Нет… слово было **{word}**.\n"
+            "Игра окончена моментально."
+        )
+
+        games.pop(chat_id, None)
