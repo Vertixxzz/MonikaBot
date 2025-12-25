@@ -1,14 +1,16 @@
+from cfg import DATABASE_URL
 import asyncpg
 
-db_pool = None
+db_pool: asyncpg.Pool | None = None
 
-async def connect_db():
+async def connect_db() -> asyncpg.Pool:
     global db_pool
-    db_pool = await asyncpg.create_pool(
-        user='postgres',
-        password='123',
-        database='postgres',
-        host='127.0.0.1',
-        port=5432
-    )
+    dsn = DATABASE_URL
+    db_pool = await asyncpg.create_pool(dsn=dsn, min_size=1, max_size=10)
     return db_pool
+
+async def close_db() -> None:
+    global db_pool
+    if db_pool is not None:
+        await db_pool.close()
+        db_pool = None

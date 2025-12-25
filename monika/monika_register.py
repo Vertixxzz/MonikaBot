@@ -53,7 +53,6 @@ def register_monika_handlers(dp: Dispatcher) -> None:
         warn_router,
         remember_router,
         antiiris_router,
-        silence_router,
         spam_router,
         anton_router,
     )

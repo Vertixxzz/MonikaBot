@@ -12,7 +12,7 @@ from fastapi import FastAPI, Request, HTTPException
 import uvicorn
 
 from common.utils.links import register_bot
-from common.db.core import connect_db
+from common.db.core import connect_db, close_db
 from common.db.pool import PoolMiddleware
 
 # локалка
@@ -147,28 +147,6 @@ async def build_polling_side():
         yuri_dp,
     )
 
-
-async def _console(bot: Bot, label: str):
-    try:
-        from aioconsole import ainput
-    except Exception:
-        logger.info("aioconsole not installed — console disabled")
-        return
-
-    try:
-        while True:
-            msg = await ainput(f"[{label}] message> ")
-            if msg.strip().lower() in ("exit", "quit"):
-                break
-            if msg.strip():
-                await bot.send_message(
-                    chat_id=TARGET_CHAT_ID,
-                    text=f"{msg}",
-                )
-    except asyncio.CancelledError:
-        logger.info("Console task cancelled (%s)", label)
-
-
 async def run_polling_both():
     (
         monika_bot,
@@ -290,6 +268,8 @@ def build_app() -> FastAPI:
                     await dp.storage.close()
                 except Exception:
                     pass
+
+        await close_db()
 
         logger.info("All bots stopped (webhook)")
 
