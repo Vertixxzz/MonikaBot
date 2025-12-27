@@ -4,7 +4,7 @@ from datetime import date
 router = Router()
 
 
-@router.message(F.text.lower() == "моника стата")
+@router.message(F.text.casefold().in_(["моника стата","стата"]))
 async def stats_today(message: types.Message, pool):
     chat_id = message.chat.id
     today = date.today()

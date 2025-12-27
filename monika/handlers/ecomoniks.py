@@ -19,7 +19,10 @@ def to_utc_naive(dt):
     return dt.astimezone(timezone.utc).replace(tzinfo=None)
 
 
-@router.message(F.text.lower() == "моника дай денег")
+@router.message((F.text.casefold().in_(["моника дай денег", "дай денег", "/бонус"])) | Command("bonus"))
+async def bonus_handler(message: Message):
+    ...
+
 async def monika_claim_money(message: Message, pool):
     user_id = message.from_user.id
     username = message.from_user.username or message.from_user.full_name
@@ -58,7 +61,7 @@ async def monika_claim_money(message: Message, pool):
     await message.reply(f"Держи, вот тебе {amount} докидолларов!")
 
 
-@router.message(F.text.lower().startswith("моника баланс"))
+@router.message((F.text.casefold().in_(["моника баланс", "баланс"])))
 async def check_balance(message: Message, pool):
     user_id = message.from_user.id
     balance = await get_balance(pool, user_id)

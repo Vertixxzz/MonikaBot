@@ -36,7 +36,7 @@ async def recognition(file_path):
     result_text += res.get("text", "")
     return result_text.strip()
 
-@router.message(F.text.regexp(r"(?i)^моника расшифруй$"))
+@router.message(F.text.casefold().in_(["моника расшифруй", "расшифруй"]))
 async def handle_voice(message: Message, bot: Bot):
     if message.reply_to_message and message.reply_to_message.voice:
         file = await bot.get_file(message.reply_to_message.voice.file_id)

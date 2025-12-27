@@ -293,7 +293,7 @@ def build_app() -> FastAPI:
             dp = holder["yuri_dp"]
 
         update = Update.model_validate(await request.json())
-        await dp.feed_update(bot, update)
+        bg.add_task(dp.feed_update, bot, update)
         return {"ok": True}
 
     @app.post(path_monika)

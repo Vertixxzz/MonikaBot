@@ -3,7 +3,7 @@ from aiogram.types import Message
 from common.db.myday import db_get_today_phrase,db_pick_random_phrase, db_save_today_phrase
 router = Router()
 
-@router.message(F.text.func(lambda t: t and t.lower().startswith("моника мой день")))
+@router.message(F.text.func(lambda t: t and t.lower().startswith("мой день")))
 async def day(message: Message, pool):
     user_id = message.from_user.id
 

@@ -16,11 +16,20 @@ async def get_weather(city: str):
                 return None
             return await resp.json()
 
-@router.message(lambda msg: msg.text and msg.text.lower().startswith("моника погода "))
+PREFIXES = ("моника погода", "погода")
+
+@router.message(lambda msg: msg.text and msg.text.lower().startswith(PREFIXES))
 async def handle_weather(message: types.Message):
-    city = message.text[len("моника погода "):].strip()
+    text = message.text.strip()
+    low = text.lower()
+
+    for p in PREFIXES:
+        if low.startswith(p):
+            city = text[len(p):].strip()   # всё после префикса
+            break
+
     if not city:
-        await message.reply("Я не вижу этот город", parse_mode="Markdown")
+        await message.answer("Напиши город: `погода Москва` или `Моника погода Астана`")
         return
 
     data = await get_weather(city)

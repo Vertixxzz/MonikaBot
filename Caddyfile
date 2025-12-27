@@ -1,0 +1,3 @@
+bot.dokis.xyz {
+  reverse_proxy app:8000
+}

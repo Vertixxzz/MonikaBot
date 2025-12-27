@@ -7,18 +7,27 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/health || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 10
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "5"
+
+  caddy:
+    image: caddy:2
+    container_name: tg_caddy
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
 
   db:
     image: postgres:17
@@ -35,12 +44,10 @@ services:
       interval: 5s
       timeout: 3s
       retries: 30
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "5"
 
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:
+
 
