@@ -1,5 +1,7 @@
 import re
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+MSK = ZoneInfo("Europe/Moscow")
 
 from aiogram import Router, F
 from aiogram.types import Message, ChatPermissions
@@ -250,10 +252,10 @@ async def showwarn_handler(message: Message, pool):
 
     lines = []
     for i, e in enumerate(events, start=1):
-        reason = e["reason"] or "Нарушение правил"
-        dt = e["warned_at"]
-        dt_str = dt.strftime("%Y-%m-%d %H:%M:%S")
-        lines.append(f"{i}) `{dt_str}` — {reason}")
+        reason = (e["reason"] or "Нарушение правил").strip()
+        dt = e["warned_at"].astimezone(MSK)
+        dt_str = dt.strftime("%d.%m.%Y %H:%M")
+        lines.append(f"{i}) `{dt_str} МСК` - {reason}")
 
     await message.answer(
         f"У пользователя {who_label(username)} **{data['count']}** варнов.\n"
