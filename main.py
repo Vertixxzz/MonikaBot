@@ -212,6 +212,41 @@ def build_app() -> FastAPI:
     path_sayori = norm(WEBHOOK_PATH_SAYORI)
     path_yuri = norm(WEBHOOK_PATH_YURI)
 
+    async def set_all_webhooks(monika_bot: Bot, sayori_bot: Bot, yuri_bot: Bot) -> None:
+        await monika_bot.set_webhook(
+            f"{BASE_URL}{path_monika}",
+            secret_token=SECRET_TOKEN_MONIKA,
+        )
+        await sayori_bot.set_webhook(
+            f"{BASE_URL}{path_sayori}",
+            secret_token=SECRET_TOKEN_SAYORI,
+        )
+        await yuri_bot.set_webhook(
+            f"{BASE_URL}{path_yuri}",
+            secret_token=SECRET_TOKEN_YURI,
+        )
+
+    async def webhook_retry_loop(monika_bot: Bot, sayori_bot: Bot, yuri_bot: Bot) -> None:
+        # 5/10/15/20/25/30, дальше раз в 30
+        schedule = [5, 10, 15, 20, 25, 30]
+        attempt = 0
+
+        while True:
+            try:
+                await set_all_webhooks(monika_bot, sayori_bot, yuri_bot)
+                logger.info("Webhooks set for all bots")
+                return
+            except Exception as e:
+                delay = schedule[attempt] if attempt < len(schedule) else 30
+                attempt += 1
+                logger.warning(
+                    "Failed to set webhooks (attempt %d). Retry in %ss. Error: %r",
+                    attempt,
+                    delay,
+                    e,
+                )
+                await asyncio.sleep(delay)
+
     @app.on_event("startup")
     async def on_startup():
         (
@@ -233,44 +268,35 @@ def build_app() -> FastAPI:
         )
 
         for bot in (monika_bot, sayori_bot, yuri_bot):
-            await bot.delete_webhook(drop_pending_updates=True)
+            try:
+                await bot.delete_webhook(drop_pending_updates=True)
+            except Exception:
+                pass
 
-        await monika_bot.set_webhook(
-            f"{BASE_URL}{path_monika}",
-            secret_token=SECRET_TOKEN_MONIKA,
-        )
-        await sayori_bot.set_webhook(
-            f"{BASE_URL}{path_sayori}",
-            secret_token=SECRET_TOKEN_SAYORI,
-        )
-        await yuri_bot.set_webhook(
-            f"{BASE_URL}{path_yuri}",
-            secret_token=SECRET_TOKEN_YURI,
-        )
-
-        logger.info("Webhooks set for all bots")
+        asyncio.create_task(webhook_retry_loop(monika_bot, sayori_bot, yuri_bot))
 
     @app.on_event("shutdown")
     async def on_shutdown():
         for key in ("monika_bot", "sayori_bot", "yuri_bot"):
-            bot: Bot | None = holder.get(key)  # type: ignore
+            bot = holder.get(key)
             if bot:
                 try:
-                    await bot.delete_webhook(drop_pending_updates=True)
-                    await bot.session.close()
+                    b: Bot = bot  # type: ignore
+                    await b.delete_webhook(drop_pending_updates=True)
+                    await b.session.close()
                 except Exception:
                     pass
 
         for key in ("monika_dp", "sayori_dp", "yuri_dp"):
-            dp: Dispatcher | None = holder.get(key)  # type: ignore
+            dp = holder.get(key)
             if dp:
                 try:
-                    await dp.storage.close()
+                    d: Dispatcher = dp  # type: ignore
+                    await d.storage.close()
                 except Exception:
                     pass
 
         await close_db()
-
         logger.info("All bots stopped (webhook)")
 
     async def _handle(request: Request, which: str):
@@ -293,7 +319,7 @@ def build_app() -> FastAPI:
             dp = holder["yuri_dp"]
 
         update = Update.model_validate(await request.json())
-        await dp.feed_update(bot, update)
+        await dp.feed_update(bot, update)  # type: ignore[arg-type]
         return {"ok": True}
 
     @app.post(path_monika)
