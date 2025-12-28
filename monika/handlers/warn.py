@@ -246,7 +246,19 @@ async def showwarn_handler(message: Message, pool):
         await message.answer("У данного пользователя нет варнов.")
         return
 
-    await message.answer(f"У пользователя {who_label(username)} есть {data['count']} варнов.")
+    events = await get_warning_events(pool, user_id, chat_id, limit=10)
+
+    lines = []
+    for i, e in enumerate(events, start=1):
+        reason = e["reason"] or "Нарушение правил"
+        dt = e["warned_at"]
+        dt_str = dt.strftime("%Y-%m-%d %H:%M:%S")
+        lines.append(f"{i}) `{dt_str}` — {reason}")
+
+    await message.answer(
+        f"У пользователя {who_label(username)} **{data['count']}** варнов.\n"
+        f"Последние {len(lines)}:\n" + "\n".join(lines)
+    ))
 
 
 # -------------------- MUTE / UNMUTE --------------------
