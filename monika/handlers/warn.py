@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from aiogram import Router, F
 from aiogram.types import Message, ChatPermissions
 from aiogram.exceptions import TelegramBadRequest
+from aiogram.filters import Command
 
 from common.db.warnings import add_warning, get_warnings, clear_warnings, remove_one_warning
 from common.db.utilities import get_user_id_by_username

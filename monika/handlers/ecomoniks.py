@@ -1,11 +1,13 @@
 from aiogram import Router, F
 from aiogram.types import Message
+from aiogram.filters import Command
 from common.db.economics import (
     add_wallet, get_balance, add_balance, transfer_money
 )
 import random
 from datetime import datetime, timedelta, timezone
 from cfg import ADMIN_LIST
+from aiogram.filters import Command
 
 router = Router()
 early_reply = ["Успеется, хапуга.", "Терпение - добродетель.", "Я только недавно давала тебе денег!","иди нахуй"]
@@ -18,11 +20,8 @@ def to_utc_naive(dt):
         return dt
     return dt.astimezone(timezone.utc).replace(tzinfo=None)
 
-
-@router.message((F.text.casefold().in_(["моника дай денег", "дай денег", "/бонус"])) | Command("bonus"))
-async def bonus_handler(message: Message):
-    ...
-
+VARIANTS = ["моника дай денег", "дай денег"]
+VAR_MAP = {v.casefold(): v for v in VARIANTS}
 async def monika_claim_money(message: Message, pool):
     user_id = message.from_user.id
     username = message.from_user.username or message.from_user.full_name
