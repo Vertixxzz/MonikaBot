@@ -50,12 +50,14 @@ def tg_human_error(e: TelegramBadRequest) -> str:
         return "Нельзя применить действие к самому боту."
     if "user not found" in msg:
         return "Пользователь не найден."
+    if "can't remove chat owner" in msg:
+        return "Нельзя применить действие к владельцу чата"
     return f"Ошибка Telegram: {getattr(e, 'message', str(e))}"
 
 
 async def deny_if_self(message: Message, target_id: int, action_word: str) -> bool:
     if target_id == message.bot.id:
-        await message.answer(f"Нельзя {action_word} самого бота.")
+        await message.answer(f"Эй! Не надо меня{action_word}!.")
         return True
     return False
 
