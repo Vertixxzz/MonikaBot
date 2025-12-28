@@ -185,6 +185,19 @@ async def rp_kiss(message: Message):
             print("Ошибка при ответе Моники:", e)
         return
 
+    if target.id == 8310255380:
+        try:
+            yuri = await get_bot_in_chat("yuri", chat_id)
+            if sender.id != 6144518515:
+                await yuri.send_message(chat_id, f"н.. нет, я не могу, извини")
+                return
+            await message.reply(f"@{name1} поцеловал(-а) @{name2}!")
+            await asyncio.sleep(0.5)
+            await yuri.send_message(chat_id, "*краснеет*")
+        except Exception as e:
+            print("Ошибка при ответе Юри", e)
+        return
+
     await message.reply(f"@{name1} поцеловал(-а) @{name2}!")
 
 
