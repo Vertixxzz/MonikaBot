@@ -255,3 +255,27 @@ async def resign_handler(message: Message, pool) -> None:
 
     await remove_bot_admin(pool, chat_id, user_id)
     await message.reply(f"Принято. Твое звание «{level_title(level)}» снято.")
+
+@router.message(F.text.lower() == "восстановить права")
+async def restore_rights_handler(message: Message, pool) -> None:
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        member = await message.bot.get_chat_member(chat_id, user_id)
+    except Exception:
+        await message.reply("Телеграм считает что тебя не существует, прикинь")
+        return
+
+    if member.status != "creator":
+        await message.reply("Команда доступна только создателю чата")
+        return
+
+    current = await get_bot_level(pool, chat_id, user_id)
+    if current == 5:
+        await message.reply("У тебя уже есть права создателя")
+        return
+
+    await upsert_bot_level(pool, chat_id, user_id, level=5, assigned_by=user_id)
+    old = f" (было: «{level_title(current)}»)" if current else ""
+    await message.reply(f"Готово. Права восстановлены: теперь ты «Создатель».{old}")
