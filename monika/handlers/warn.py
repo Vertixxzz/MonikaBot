@@ -130,9 +130,8 @@ def extract_duration_from_first_line(message: Message) -> str:
     first_line = (message.text or "").splitlines()[0]
     parts = first_line.strip().split()
 
-    start_idx = 1 if message.reply_to_message else 2
-    return " ".join(parts[start_idx:]).strip()
-
+    idx = 1 if message.reply_to_message else 2
+    return parts[idx] if len(parts) > idx else ""
 
 def extract_reason_from_second_line(message: Message) -> str | None:
     lines = (message.text or "").splitlines()
@@ -364,7 +363,13 @@ async def ban_handler(message: Message, pool):
     try:
         delta = parse_duration(duration_text)  # None => перманентный бан
     except ValueError:
-        await message.answer("Не поняла время. Примеры: `1ч`, `15м`, `7д`, `1ч 15м`. Или без времени — навсегда.")
+        await message.answer(
+            "Не поняла время.\n"
+            "Формат: `бан @username 7д` (время опционально).\n"
+            "Причина (опционально) — строго *второй строкой*, например:\n"
+            "`бан @username 7д`\n"
+            "`нарушение правил`"
+        )
         return
 
     until_date = None
@@ -392,6 +397,7 @@ async def ban_handler(message: Message, pool):
             await message.answer(f"{who} забанен на {duration_text}.\nПричина: {reason}")
         else:
             await message.answer(f"{who} забанен на {duration_text}.")
+
 
 
 @router.message(lambda msg: msg.text and msg.text.lower().split()[0] == "разбан")
