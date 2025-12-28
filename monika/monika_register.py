@@ -5,6 +5,7 @@ from aiogram import Dispatcher, Router
 from .middlewares.messagestats import MessageStatsMiddleware
 from .handlers.greetings import register_greetings
 
+from .handlers.promote import router as promote_router
 from .handlers.stats import router as stats_router
 from .handlers.help import router as help_router
 from .handlers.garem import router as garem_router
@@ -37,6 +38,7 @@ def register_monika_handlers(dp: Dispatcher) -> None:
     register_greetings(dp)
 
     routers: tuple[Router, ...] = (
+        promote_router,
         promo_router,
         openai_router,
         weather_router,
