@@ -58,6 +58,8 @@ def tg_human_error(e: TelegramBadRequest) -> str:
         return "Пользователь не найден."
     if "can't remove chat owner" in msg:
         return "Нельзя применить действие к владельцу чата"
+    if "PARTICIPANT_ID_INVALID" in msg:
+        return "Ты указал неправильного пользователя/ничего не указал"
     return f"Ошибка Telegram: {getattr(e, 'message', str(e))}"
 
 
