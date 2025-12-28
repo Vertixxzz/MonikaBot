@@ -20,8 +20,7 @@ def to_utc_naive(dt):
         return dt
     return dt.astimezone(timezone.utc).replace(tzinfo=None)
 
-VARIANTS = ["моника дай денег", "дай денег"]
-VAR_MAP = {v.casefold(): v for v in VARIANTS}
+@router.message((F.text.casefold().in_(["моника дай денег", "дай денег"])))
 async def monika_claim_money(message: Message, pool):
     user_id = message.from_user.id
     username = message.from_user.username or message.from_user.full_name
