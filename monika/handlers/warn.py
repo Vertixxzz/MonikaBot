@@ -77,7 +77,7 @@ async def resolve_target_user(message: Message, pool, username_pos: int = 1) -> 
     if not username:
         return None, None
 
-    user_id = await get_user_id_by_username(pool, username, chat_id)
+    user_id = await get_user_id_by_username(pool, username)
     return user_id, username
 
 
