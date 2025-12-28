@@ -258,7 +258,7 @@ async def showwarn_handler(message: Message, pool):
     await message.answer(
         f"У пользователя {who_label(username)} **{data['count']}** варнов.\n"
         f"Последние {len(lines)}:\n" + "\n".join(lines)
-    ))
+    )
 
 
 # -------------------- MUTE / UNMUTE --------------------
