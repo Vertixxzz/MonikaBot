@@ -1,14 +1,20 @@
 import re
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
+
 MSK = ZoneInfo("Europe/Moscow")
 
 from aiogram import Router, F
 from aiogram.types import Message, ChatPermissions
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.filters import Command
 
-from common.db.warnings import add_warning, get_warnings, clear_warnings, remove_one_warning, get_warning_events
+from common.db.warnings import (
+    add_warning,
+    get_warnings,
+    clear_warnings,
+    remove_one_warning,
+    get_warning_events,
+)
 from common.db.utilities import get_user_id_by_username
 
 router = Router()
@@ -86,7 +92,7 @@ async def resolve_target_user(message: Message, pool, username_pos: int = 1) -> 
 def parse_duration(text: str) -> timedelta | None:
     text = (text or "").strip().lower()
     if not text:
-        return None
+        raise ValueError("empty duration")
 
     text = (
         text.replace("мин.", "минут")
@@ -126,17 +132,62 @@ def parse_duration(text: str) -> timedelta | None:
     return total
 
 
-def extract_duration_from_first_line(message: Message) -> str:
-    first_line = (message.text or "").splitlines()[0]
-    parts = first_line.strip().split()
-
-    idx = 1 if message.reply_to_message else 2
-    return parts[idx] if len(parts) > idx else ""
-
 def extract_reason_from_second_line(message: Message) -> str | None:
     lines = (message.text or "").splitlines()
     if len(lines) >= 2 and lines[1].strip():
         return lines[1].strip()
+    return None
+
+
+# --------- SMART ARG PARSING (duration + inline tail) ---------
+
+def get_args_after_target(message: Message, username_pos: int = 1) -> list[str]:
+    first_line = (message.text or "").splitlines()[0].strip()
+    parts = first_line.split()
+
+    if message.reply_to_message:
+        start = 1  # после команды
+    else:
+        start = username_pos + 1  # после @username
+
+    return parts[start:] if len(parts) > start else []
+
+
+def split_duration_and_tail(args: list[str]) -> tuple[timedelta | None, str, str]:
+    if not args:
+        return None, "", ""
+
+    # Ищем самое длинное удачное совпадение с начала:
+    # "1ч 15м", "15 минут", "7д", ...
+    best_delta = None
+    best_len = 0
+
+    for i in range(1, len(args) + 1):
+        candidate = " ".join(args[:i])
+        try:
+            d = parse_duration(candidate)
+        except ValueError:
+            continue
+        else:
+            best_delta = d
+            best_len = i
+
+    if best_len == 0:
+        # Ничего не похоже на время => времени нет, а всё args — хвост (возможная причина)
+        return None, "", " ".join(args).strip()
+
+    duration_text = " ".join(args[:best_len]).strip()
+    tail_text = " ".join(args[best_len:]).strip()
+    return best_delta, duration_text, tail_text
+
+
+def extract_reason(message: Message, inline_tail: str | None = None) -> str | None:
+    second = extract_reason_from_second_line(message)
+    if second:
+        return second
+    if inline_tail:
+        t = inline_tail.strip()
+        return t if t else None
     return None
 
 
@@ -157,7 +208,10 @@ async def warn_user_handler(message: Message, pool):
     else:
         parts = lines[0].split()
         if len(parts) < 2:
-            await message.answer("Укажи пользователя реплаем или так: `варн @username`.\nПричину можно второй строкой.")
+            await message.answer(
+                "Укажи пользователя реплаем или так: `варн @username`.\n"
+                "Причину можно второй строкой."
+            )
             return
 
         username = parts[1].lstrip("@")
@@ -281,13 +335,8 @@ async def mute_handler(message: Message, pool):
     if await deny_if_self(message, user_id, "замутить"):
         return
 
-    duration_text = extract_duration_from_first_line(message)
-
-    try:
-        delta = parse_duration(duration_text)  # None => вечный мут
-    except ValueError:
-        await message.answer("Не поняла время. Примеры: `1ч`, `15м`, `21 минута`, `7д`, `1ч 15м`. Или без времени — навсегда.")
-        return
+    args = get_args_after_target(message, username_pos=1)
+    delta, duration_text, tail = split_duration_and_tail(args)
 
     until_date = None
     if delta is not None:
@@ -357,20 +406,10 @@ async def ban_handler(message: Message, pool):
     if await deny_if_self(message, user_id, "забанить"):
         return
 
-    duration_text = extract_duration_from_first_line(message)
-    reason = extract_reason_from_second_line(message)
+    args = get_args_after_target(message, username_pos=1)
+    delta, duration_text, tail = split_duration_and_tail(args)
 
-    try:
-        delta = parse_duration(duration_text)  # None => перманентный бан
-    except ValueError:
-        await message.answer(
-            "Не поняла время.\n"
-            "Формат: `бан @username 7д` (время опционально).\n"
-            "Причина (опционально) - строго второй строкой, например:\n"
-            "`бан @username 7д`\n"
-            "`нарушение правил`"
-        )
-        return
+    reason = extract_reason(message, inline_tail=tail)
 
     until_date = None
     if delta is not None:
@@ -397,7 +436,6 @@ async def ban_handler(message: Message, pool):
             await message.answer(f"{who} забанен на {duration_text}.\nПричина: {reason}")
         else:
             await message.answer(f"{who} забанен на {duration_text}.")
-
 
 
 @router.message(lambda msg: msg.text and msg.text.lower().split()[0] == "разбан")
@@ -447,3 +485,4 @@ async def kick_handler(message: Message, pool):
         return
 
     await message.answer(f"{who_label(display)} кикнут.")
+
