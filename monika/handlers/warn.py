@@ -160,7 +160,7 @@ async def warn_user_handler(message: Message, pool):
             return
 
         username = parts[1].lstrip("@")
-        target_id = await get_user_id_by_username(pool, username, chat_id)
+        target_id = await get_user_id_by_username(pool, username)
         if not target_id:
             await message.answer("Не удалось найти пользователя.")
             return
@@ -210,7 +210,7 @@ async def warn_user_snyat(message: Message, pool):
             await message.answer("Укажи пользователя: `снять варн @username` (или реплаем).")
             return
         username = parts[2].lstrip("@")
-        user_id = await get_user_id_by_username(pool, username, chat_id)
+        user_id = await get_user_id_by_username(pool, username)
         if not user_id:
             await message.answer("Не удалось найти пользователя.")
             return
@@ -238,7 +238,7 @@ async def showwarn_handler(message: Message, pool):
             await message.answer("Укажи пользователя: `варны @username` (или реплаем).")
             return
         username = parts[1].lstrip("@")
-        user_id = await get_user_id_by_username(pool, username, chat_id)
+        user_id = await get_user_id_by_username(pool, username)
         if not user_id:
             await message.answer("Не удалось найти пользователя.")
             return

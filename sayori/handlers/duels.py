@@ -37,7 +37,7 @@ async def extract_opponent(message: Message, pool) -> int | None:
         arg = parts[2].lstrip("@")
         if arg.isdigit():
             return int(arg)
-        return await get_user_id_by_username(pool, arg, message.chat.id)
+        return await get_user_id_by_username(pool, arg)
     return None
 
 
