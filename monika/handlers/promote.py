@@ -1,6 +1,6 @@
 # /monika/handlers/admin_rank.py
 from __future__ import annotations
-
+import re
 import asyncio
 from aiogram import Router, F
 from aiogram.types import Message
@@ -26,6 +26,10 @@ LEVEL_TITLE: dict[int, str] = {
     5: "Создатель",
 }
 
+_BAD_NUMBER_TOKEN = re.compile(r"^[+-]?\d+([\-–]\d+)+$")  # 1-5, 1–5
+_SIGNED_INT = re.compile(r"^[+-]?\d+$")                  # -1, +2, 3
+
+
 def level_title(level: int) -> str:
     return LEVEL_TITLE.get(level, f"Уровень {level}")
 
@@ -34,11 +38,18 @@ def format_user(user_id: int, username: str | None) -> str:
         return f"@{username.lstrip('@')}"
     return f"<code>{user_id}</code>"
 
-def parse_first_int(text: str) -> int | None:
-    for p in (text or "").split():
-        if p.isdigit():
+def parse_first_int(text: str, default: int = 1) -> int | None:
+    parts = (text or "").split()
+
+    for p in parts:
+        if _BAD_NUMBER_TOKEN.match(p):
+            return None
+
+    for p in parts:
+        if _SIGNED_INT.match(p):
             return int(p)
-    return None
+
+    return default
 
 def clamp_level(level: int) -> int:
     return max(1, min(5, level))
@@ -86,7 +97,7 @@ async def who_admins_handler(message: Message, pool) -> None:
     lines: list[str] = []
     for (user_id, level), mark in zip(rows, marks):
         lines.append(
-            f"• {format_user(user_id, usernames.get(user_id))} — {level_title(level)} — {mark}"
+            f"• {format_user(user_id, usernames.get(user_id))} - {level_title(level)} - {mark}"
         )
 
     await message.reply("Назначенные звания:\n" + "\n".join(lines), parse_mode="HTML")
@@ -97,9 +108,9 @@ async def promote_handler(message: Message, pool) -> None:
     chat_id = message.chat.id
     actor_id = message.from_user.id
 
-    delta = parse_first_int(message.text or "")
-    if not delta or delta <= 0:
-        await message.reply("Укажи число рангов: например 'повысить 2'.")
+    delta = parse_first_int(message.text, default=1)
+    if delta is None or delta <= 0 or delta > 5:
+        await message.reply("Укажи число рангов 1–5: например 'повысить 2'.")
         return
 
     target_id = await resolve_target_user_id(pool, message)
@@ -148,9 +159,9 @@ async def demote_handler(message: Message, pool) -> None:
     chat_id = message.chat.id
     actor_id = message.from_user.id
 
-    delta = parse_first_int(message.text or "")
-    if not delta or delta <= 0:
-        await message.reply("Укажи число рангов: например 'понизить'.")
+    delta = parse_first_int(message.text, default=1)
+    if delta is None or delta <= 0 or delta > 5:
+        await message.reply("Укажи число рангов 1–5: например 'повысить 2'.")
         return
 
     target_id = await resolve_target_user_id(pool, message)
