@@ -248,3 +248,28 @@ async def rp_pet(message: Message):
         return
 
     await message.reply(f"@{name1} аккуратно погладил(-а) @{name2}.")
+
+
+@router.message(F.text.lower().in_({"киркифицировать", "киркифицировал", "киркифицировала"}))
+async def rp_kirk(message: Message):
+    if not message.reply_to_message:
+        return
+
+    sender = message.from_user
+    target = message.reply_to_message.from_user or message.reply_to_message.sender_chat
+    if not target or not hasattr(target, "id"):
+        return
+
+    name1 = sender.username or sender.first_name
+    name2 = getattr(target, "username", None) or getattr(target, "first_name", None) or getattr(target, "title", "Безымянный")
+    chat_id = message.chat.id
+
+    if not await isrpable(message, target, sender):
+        return
+    if not await is18rpable(message, target, sender):
+        return
+
+    if name1 == name2:
+        return
+
+    await message.reply(f"ХОЛИ ЩИТ @{name1} КИРКИФИЦИРОВАЛ(-а) @{name2}!!!!")
