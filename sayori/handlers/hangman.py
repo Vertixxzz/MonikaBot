@@ -119,9 +119,9 @@ WORDS_HARD = [
 ]
 
 DIFFICULTIES = {
-    "easy":   {"reward": 10, "wrong_penalty": 1, "max_fails": 7, "words": WORDS_EASY, "hint_cost": 50},
-    "normal": {"reward": 25, "wrong_penalty": 1, "max_fails": 7, "words": WORDS_NORMAL, "hint_cost": 50},
-    "hard":   {"reward": 60, "wrong_penalty": 2, "max_fails": 7, "words": WORDS_HARD, "hint_cost": 50},  # hard +2 fail
+    "easy":   {"reward": 25, "wrong_penalty": 1, "max_fails": 7, "words": WORDS_EASY, "hint_cost": 50},
+    "normal": {"reward": 50, "wrong_penalty": 1, "max_fails": 7, "words": WORDS_NORMAL, "hint_cost": 50},
+    "hard":   {"reward": 150, "wrong_penalty": 2, "max_fails": 7, "words": WORDS_HARD, "hint_cost": 50},  # hard +2 fail
 }
 
 HANGMAN = [
