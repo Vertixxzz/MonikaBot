@@ -382,7 +382,7 @@ async def guess_whole_word(message: Message, pool):
         remaining = await get_remaining_games(pool, owner_id, day, DAILY_GAMES_LIMIT)
         await message.answer(
             f"Это была оплачиваемая игра, но ты проиграл, увы!.\n"
-            f"у тебя осталось **{remaining}** оплачиваемых игр на сегодня (по МСК)."
+            f"у тебя осталось {remaining} оплачиваемых игр на сегодня"
         )
     else:
         await message.answer("За эту игру докидолларов я тебе не дам, хехе")
