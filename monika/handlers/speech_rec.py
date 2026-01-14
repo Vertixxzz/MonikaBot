@@ -50,7 +50,7 @@ async def handle_voice(message: Message, bot: Bot):
             await message.answer("Я не смогла услышать слова в этом голосовом")
             return
 
-        await message.answer(f"@{username if original_user.username else username} сказал: {text}")
+        await message.answer(f"В голосовом сообщении от @{username if original_user.username else username} я услышала: {text}")
 
         os.remove(ogg_path)
         wav_path = ogg_path.replace(".ogg", ".wav")

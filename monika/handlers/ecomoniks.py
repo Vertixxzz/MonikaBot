@@ -65,7 +65,7 @@ async def check_balance(message: Message, pool):
     balance = await get_balance(pool, user_id)
 
     if balance <= 0:
-        await message.reply("У тебя нет денег пхахахахах")
+        await message.reply("У тебя нулевоЙ баланс")
     else:
         await message.reply(f"У тебя на счету {balance} докидолларов")
 
@@ -97,7 +97,7 @@ async def give_money_handler(message: Message, pool):
     except ValueError as e:
         msg = str(e)
         if msg == "У отправителя нет кошелька":
-            await message.reply("У тебя ещё нет кошелька! Сначала попроси у Моники немного денег.")
+            await message.reply("У тебя ещё нет кошелька! Сначала попроси у Меня немного денег.")
         elif msg == "Недостаточно средств":
             await message.reply("Недостаточно средств")
         else:

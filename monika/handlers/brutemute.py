@@ -17,5 +17,4 @@ async def delete_messages_from_target(message: Message):
     try:
         await message.delete()
     except Exception:
-        # Просто игнорируем ошибки (недостаточно прав, сообщение уже удалено и т.п.)
         return

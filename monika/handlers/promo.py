@@ -19,7 +19,7 @@ async def handle_promo(message: Message, pool):
 
     try:
         reward = await activate_promo(pool, user_id, promo_code)
-        await message.reply(f"Промокод активирован! Ты получил {reward} докидолларов")
+        await message.reply(f"Промокод активирован! Перевела на твой кошелек {reward} докидолларов")
 
     except ValueError as e:
         msg = str(e)
@@ -28,7 +28,7 @@ async def handle_promo(message: Message, pool):
         elif msg == "already_used":
             await message.reply("Ты уже использовал этот промокод")
         elif msg == "limit_reached":
-            await message.reply("Промокод больше недоступен — лимит активаций достигнут")
+            await message.reply("Промокод больше недоступен - лимит активаций достигнут")
         else:
             await message.reply("Что-то пошло не так... попробуй чуть позже")
 

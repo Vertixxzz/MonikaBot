@@ -61,18 +61,16 @@ async def duel_start(message: Message, pool):
         else (f"@{message.entities[2].text.lstrip('@')}" if message.entities and len(message.entities) >= 3 else str(opponent_id))
     )
 
-    # 1) сперва отправляем сообщение с клавиатурой — получаем ИСТИННЫЙ message_id, к которому будут привязаны колбэки
     sent = await message.reply(
         f"{initiator_username} вызывает {opponent_username} на дуэль!\n"
         f"Смело, смело... принимаешь вызов?",
         reply_markup=accept,
     )
 
-    # 2) теперь записываем дуэль, используя sent.message_id
     await create_duel(
         pool,
         chat_id=chat_id,
-        message_id=sent.message_id,              # <-- ключ дуэли = id сообщения с кнопками
+        message_id=sent.message_id,
         initiator_id=initiator_id,
         initiator_username=initiator_username,
         opponent_id=opponent_id,
@@ -154,7 +152,7 @@ async def on_shot(cb: CallbackQuery, pool):
         await set_turn(pool, chat_id, msg_id, next_turn)
         await cb.answer("Мимо!")
         await cb.message.edit_text(
-            f"{cb.from_user.full_name} промахнулся!\nТеперь ход за {next_username}",
+            f"Выстрел @{cb.from_user.full_name} не попадает! !\nТеперь ход за @{next_username}",
             reply_markup=duel,
         )
 
@@ -174,5 +172,5 @@ async def on_surrender(cb: CallbackQuery, pool):
         return await cb.answer("Ты не участник дуэли!", show_alert=True)
 
     winner_name = duel_data["opponent_username"] if who == initiator_id else duel_data["initiator_username"]
-    await cb.message.edit_text(f"{cb.from_user.full_name} сдался.\nПобеждает {winner_name}!", reply_markup=None)
+    await cb.message.edit_text(f"{cb.from_user.full_name} сдается.\nПобеждает {winner_name}!", reply_markup=None)
     await delete_duel(pool, chat_id, msg_id)

@@ -5,4 +5,4 @@ router = Router()
 
 @router.message(F.text.func(lambda t: t and t.lower().startswith(("/бонус", "/bonus"))))
 async def garem(message: Message):
-    await message.reply("гаремник in the big 25😭🙏")
+    await message.reply("гаремник in the big 26😭🙏")

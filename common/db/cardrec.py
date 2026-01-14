@@ -3,7 +3,6 @@ from datetime import datetime
 async def recalculate_cards_for_chat(conn, chat_id: int) -> int:
     now = datetime.utcnow()
 
-    # 1️⃣ Помечаем ушедших как LEGACY
     await conn.execute(
         """
         UPDATE user_cards
@@ -19,7 +18,6 @@ async def recalculate_cards_for_chat(conn, chat_id: int) -> int:
         chat_id,
     )
 
-    # 2️⃣ Берём ТОЛЬКО активных
     rows = await conn.fetch(
         """
         SELECT user_id, messages_total
@@ -37,7 +35,6 @@ async def recalculate_cards_for_chat(conn, chat_id: int) -> int:
 
     total = len(rows)
 
-    # 3️⃣ Пересчитываем активных
     for index, row in enumerate(rows):
         rank = index + 1
         percentile = rank / total
