@@ -227,7 +227,6 @@ def build_app() -> FastAPI:
         )
 
     async def webhook_retry_loop(monika_bot: Bot, sayori_bot: Bot, yuri_bot: Bot) -> None:
-        # 5/10/15/20/25/30, дальше раз в 30
         schedule = [5, 10, 15, 20, 25, 30]
         attempt = 0
 

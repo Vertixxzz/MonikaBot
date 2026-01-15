@@ -178,7 +178,7 @@ async def yuri_gacha_roll_callback(query: types.CallbackQuery, pool):
         return
 
     if query.from_user.id != owner_id:
-        await query.answer("Это кнопка не для тебя 😾", show_alert=True)
+        await query.answer("Это кнопка не для тебя", show_alert=True)
         return
 
     try:
@@ -211,7 +211,7 @@ async def yuri_gacha_roll_callback(query: types.CallbackQuery, pool):
                 f"Нужно: <code>{ROLL_COST_DEFAULT}</code>\n"
                 f"У тебя: <code>{bal}</code>",
                 parse_mode="HTML",
-                reply_markup=gacha_roll_keyboard(owner_id),  # оставим кнопку, вдруг докинет монеток
+                reply_markup=gacha_roll_keyboard(owner_id),
             )
             return
 
@@ -245,7 +245,10 @@ async def yuri_gacha_roll_callback(query: types.CallbackQuery, pool):
         header="Твоя крутка",
         top_html=top_html,
         pity_html=pity_html,
-        reply_markup=gacha_roll_keyboard(owner_id),  # кнопка снова под карточкой
+        reply_markup=gacha_roll_keyboard(owner_id),
     )
 
+@router.callback_query(F.data.startswith("yuri:gacha:roll:"))
+async def _debug_cb(query: types.CallbackQuery):
+    await query.answer("CB OK", show_alert=True)
 
