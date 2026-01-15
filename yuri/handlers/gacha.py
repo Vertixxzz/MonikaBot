@@ -6,31 +6,25 @@ import html
 from aiogram import Router, types, F
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.filters.callback_data import CallbackData
 
 from common.db.gacha import roll_once, ROLL_COST_DEFAULT
 from common.db.utilities import get_usernames_by_ids
+from common.db.gacha_menus import upsert_gacha_menu, get_gacha_menu_owner  # <--
 from yuri.handlers.card import get_user_avatar_file_id, get_legacy_avatar
 
 logger = logging.getLogger(__name__)
 router = Router()
 
-# ---------- CallbackData (вместо ручного split) ----------
+GACHA_ROLL_CB = "yuri_gacha_roll"
 
-class YuriGachaRollCb(CallbackData, prefix="yuri_gacha_roll"):
-    owner_id: int
+GACHA_MENU_TTL_MINUTES = 20
 
 
-def gacha_roll_keyboard(owner_id: int) -> InlineKeyboardMarkup:
+def gacha_roll_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.button(
-        text="Крутить",
-        callback_data=YuriGachaRollCb(owner_id=owner_id).pack(),
-    )
+    kb.button(text="Крутить", callback_data=GACHA_ROLL_CB)
     return kb.as_markup()
 
-
-# ---------- helpers ----------
 
 def _esc(s: str) -> str:
     return html.escape(s, quote=True)
@@ -44,6 +38,7 @@ def _format_user_link(user_id: int, username: str | None) -> str:
         if label.startswith("@"):
             label = label[1:]
         label = label.strip() or "Юзер"
+
     return f'<a href="tg://user?id={user_id}">{_esc(label)}</a>'
 
 
@@ -153,6 +148,7 @@ async def send_card_by_user_id(
                 parse_mode="HTML",
                 reply_markup=reply_markup,
             )
+
     except Exception:
         logger.exception("Failed to send gacha card")
         await message.answer(
@@ -161,45 +157,56 @@ async def send_card_by_user_id(
             reply_markup=reply_markup,
         )
 
-
-
 @router.message(F.text.func(lambda t: t and t.lower().strip() == "юри крутка"))
 async def yuri_gacha_menu(message: types.Message, pool):
-    me = await message.bot.get_me()
-    await message.answer(
+    sent = await message.answer(
         f"Карточка стоит <code>{ROLL_COST_DEFAULT}</code>.\n"
-        f"Хочешь покрутить?.. \n",
+        "Хочешь покрутить?..",
         parse_mode="HTML",
-        reply_markup=gacha_roll_keyboard(message.from_user.id),
+        reply_markup=gacha_roll_keyboard(),
     )
 
+    await upsert_gacha_menu(
+        pool=pool,
+        chat_id=sent.chat.id,
+        message_id=sent.message_id,
+        owner_id=message.from_user.id,
+    )
 
-
-@router.callback_query(YuriGachaRollCb.filter())
-async def yuri_gacha_roll_callback(
-    query: types.CallbackQuery,
-    callback_data: YuriGachaRollCb,
-    pool,
-):
+@router.callback_query(F.data == GACHA_ROLL_CB)
+async def yuri_gacha_roll_callback(query: types.CallbackQuery, pool):
     if not query.message:
         await query.answer("Нет сообщения у callback", show_alert=True)
         return
 
-    owner_id = int(callback_data.owner_id)
+    message = query.message
+    chat_id = message.chat.id
+    msg_id = message.message_id
 
-    if query.from_user.id != owner_id:
-        await query.answer("Это кнопка не для тебя", show_alert=True)
+    owner_id = await get_gacha_menu_owner(
+        pool=pool,
+        chat_id=chat_id,
+        message_id=msg_id,
+        ttl_minutes=GACHA_MENU_TTL_MINUTES,
+    )
+
+    if owner_id is None:
+        await query.answer(
+            "Это меню уже неактуально.\nНапиши: «юри крутка»",
+            show_alert=True,
+        )
+        return
+
+    if query.from_user.id != int(owner_id):
+        await query.answer("Эта кнопка не для тебя!", show_alert=True)
         return
 
     await query.answer()
 
     try:
-        await query.message.edit_reply_markup(reply_markup=None)
+        await message.edit_reply_markup(reply_markup=None)
     except Exception:
         pass
-
-    message = query.message
-    chat_id = message.chat.id
 
     user = query.from_user
     user_id = user.id
@@ -216,7 +223,10 @@ async def yuri_gacha_roll_callback(
     if not result.ok:
         if result.reason == "NOT_ENOUGH_BALANCE":
             async with pool.acquire() as conn:
-                bal = await conn.fetchval("SELECT balance FROM wallets WHERE user_id = $1", user_id)
+                bal = await conn.fetchval(
+                    "SELECT balance FROM wallets WHERE user_id = $1",
+                    user_id,
+                )
             bal = int(bal or 0)
 
             await message.answer(
@@ -224,13 +234,13 @@ async def yuri_gacha_roll_callback(
                 f"Нужно: <code>{ROLL_COST_DEFAULT}</code>\n"
                 f"У тебя: <code>{bal}</code>",
                 parse_mode="HTML",
-                reply_markup=gacha_roll_keyboard(owner_id),
+                reply_markup=gacha_roll_keyboard(),
             )
             return
 
         await message.answer(
             "Пул карточек пустой",
-            reply_markup=gacha_roll_keyboard(owner_id),
+            reply_markup=gacha_roll_keyboard(),
         )
         return
 
@@ -258,6 +268,7 @@ async def yuri_gacha_roll_callback(
         header="Твоя крутка",
         top_html=top_html,
         pity_html=pity_html,
-        reply_markup=gacha_roll_keyboard(owner_id),
+        reply_markup=gacha_roll_keyboard(),
     )
+
 

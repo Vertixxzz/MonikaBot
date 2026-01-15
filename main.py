@@ -332,17 +332,9 @@ def build_app() -> FastAPI:
             bot = holder["yuri_bot"]
             dp = holder["yuri_dp"]
 
-        payload = await request.json()
-
-        logger.warning(
-            "RAW %s update keys=%s",
-            which,
-            sorted(payload.keys()),
-        )
-
-        logger.warning("RAW %s callback_query=%s", which, "callback_query" in payload)
-
         update = Update.model_validate(await request.json())
+
+
 
         await dp.feed_update(bot, update)  # type: ignore[arg-type]
         return {"ok": True}
