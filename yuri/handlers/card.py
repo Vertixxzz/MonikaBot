@@ -127,7 +127,7 @@ async def show_user_card(message: types.Message, pool):
         f"*{header}*\n\n"
         f"Редкость: *{rarity_text}*\n"
         f"Сообщений учтено: `{messages}`\n"
-        f"Активнее, чем ~`{percentile:.1f}%` участников этого чата\n\n"
+        f"Активнее, чем ~`{100 - percentile:.1f}%` участников этого чата\n\n"
         f"_Последнее обновление: {calculated_at:%d.%m.%Y}_"
         f"{footer}"
     )
