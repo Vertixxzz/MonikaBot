@@ -7,7 +7,6 @@ from common.db.economics import (
 import random
 from datetime import datetime, timedelta, timezone
 from cfg import ADMIN_LIST
-from aiogram.filters import Command
 
 BASE_AMOUNT = 200
 COOLDOWN = timedelta(hours=2)
