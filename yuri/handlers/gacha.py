@@ -8,7 +8,7 @@ from aiogram import Router, types, F
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from common.bd.gacha import roll_once, ROLL_COST_DEFAULT
+from common.db.gacha import roll_once, ROLL_COST_DEFAULT
 from common.db.utilities import get_usernames_by_ids
 from yuri.handlers.card import get_user_avatar_file_id, get_legacy_avatar
 
