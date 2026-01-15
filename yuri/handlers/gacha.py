@@ -2,14 +2,24 @@
 
 import logging
 import html
-from aiogram import Router, types, F
+import asyncio
 
-from common.db.gacha import roll_once, ROLL_COST_DEFAULT
+from aiogram import Router, types, F
+from aiogram.types import InlineKeyboardMarkup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+from common.bd.gacha import roll_once, ROLL_COST_DEFAULT
 from common.db.utilities import get_usernames_by_ids
 from yuri.handlers.card import get_user_avatar_file_id, get_legacy_avatar
 
 logger = logging.getLogger(__name__)
 router = Router()
+
+
+def gacha_roll_keyboard(owner_id: int) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="Крутить", callback_data=f"yuri:gacha:roll:{owner_id}")
+    return kb.as_markup()
 
 
 def _esc(s: str) -> str:
@@ -26,7 +36,6 @@ def _format_user_link(user_id: int, username: str | None) -> str:
         label = label.strip() or "Юзер"
 
     return f'<a href="tg://user?id={user_id}">{_esc(label)}</a>'
-
 
 
 def _build_roll_top_html(dropped_user_id: int, dropped_username: str | None, copies: int) -> str:
@@ -49,6 +58,7 @@ def _build_pity_html(since_epic: int, since_legendary: int) -> str:
     ])
 
 
+
 async def send_card_by_user_id(
     message: types.Message,
     pool,
@@ -57,6 +67,7 @@ async def send_card_by_user_id(
     header: str,
     top_html: str = "",
     pity_html: str = "",
+    reply_markup: InlineKeyboardMarkup | None = None,
 ):
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -111,20 +122,73 @@ async def send_card_by_user_id(
     try:
         if avatar_file_id and state == "LEGACY":
             photo = await get_legacy_avatar(message.bot, avatar_file_id)
-            await message.answer_photo(photo=photo, caption=caption, parse_mode="HTML")
+            await message.answer_photo(
+                photo=photo,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=reply_markup,
+            )
+
         elif avatar_file_id:
-            await message.answer_photo(photo=avatar_file_id, caption=caption, parse_mode="HTML")
+            await message.answer_photo(
+                photo=avatar_file_id,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=reply_markup,
+            )
+
         else:
-            await message.answer(caption, parse_mode="HTML")
+            await message.answer(
+                caption,
+                parse_mode="HTML",
+                reply_markup=reply_markup,
+            )
+
     except Exception:
         logger.exception("Failed to send gacha card")
-        await message.answer(caption, parse_mode="HTML")
+        await message.answer(
+            caption,
+            parse_mode="HTML",
+            reply_markup=reply_markup,
+        )
 
 
 @router.message(F.text.func(lambda t: t and t.lower().strip() == "юри крутка"))
-async def yuri_roll(message: types.Message, pool):
+async def yuri_gacha_menu(message: types.Message, pool):
+    await message.answer(
+        f"Карточка стоит <code>{ROLL_COST_DEFAULT}</code>.\n"
+        "Хочешь покрутить?..",
+        parse_mode="HTML",
+        reply_markup=gacha_roll_keyboard(message.from_user.id),
+    )
+
+
+
+@router.callback_query(F.data.startswith("yuri:gacha:roll:"))
+async def yuri_gacha_roll_callback(query: types.CallbackQuery, pool):
+    await query.answer()
+
+    parts = (query.data or "").split(":")
+    if len(parts) != 4:
+        return
+
+    try:
+        owner_id = int(parts[3])
+    except ValueError:
+        return
+
+    if query.from_user.id != owner_id:
+        await query.answer("Это кнопка не для тебя 😾", show_alert=True)
+        return
+
+    try:
+        await query.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+
+    message = query.message
     chat_id = message.chat.id
-    user = message.from_user
+    user = query.from_user
     user_id = user.id
     username = user.username or user.full_name or "unknown"
 
@@ -141,15 +205,20 @@ async def yuri_roll(message: types.Message, pool):
             async with pool.acquire() as conn:
                 bal = await conn.fetchval("SELECT balance FROM wallets WHERE user_id = $1", user_id)
             bal = int(bal or 0)
+
             await message.answer(
                 "Не хватает докидолларов\n"
                 f"Нужно: <code>{ROLL_COST_DEFAULT}</code>\n"
                 f"У тебя: <code>{bal}</code>",
                 parse_mode="HTML",
+                reply_markup=gacha_roll_keyboard(owner_id),  # оставим кнопку, вдруг докинет монеток
             )
             return
 
-        await message.answer("Пул карточек пустой")
+        await message.answer(
+            "Пул карточек пустой",
+            reply_markup=gacha_roll_keyboard(owner_id),
+        )
         return
 
     dropped_user_id = int(result.dropped_user_id)
@@ -176,6 +245,7 @@ async def yuri_roll(message: types.Message, pool):
         header="Твоя крутка",
         top_html=top_html,
         pity_html=pity_html,
+        reply_markup=gacha_roll_keyboard(owner_id),  # кнопка снова под карточкой
     )
 
 
