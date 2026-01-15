@@ -165,12 +165,15 @@ async def send_card_by_user_id(
 
 @router.message(F.text.func(lambda t: t and t.lower().strip() == "юри крутка"))
 async def yuri_gacha_menu(message: types.Message, pool):
+    me = await message.bot.get_me()
     await message.answer(
         f"Карточка стоит <code>{ROLL_COST_DEFAULT}</code>.\n"
-        "Хочешь покрутить?..",
+        f"Хочешь покрутить?.. \n"
+        f"<b>sender:</b> <code>{me.id}</code> <code>@{me.username}</code>",
         parse_mode="HTML",
         reply_markup=gacha_roll_keyboard(message.from_user.id),
     )
+
 
 
 @router.callback_query(YuriGachaRollCb.filter())
