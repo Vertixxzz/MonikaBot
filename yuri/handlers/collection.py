@@ -20,10 +20,6 @@ CB_OPEN = "yuri:coll:open"
 CB_BACK = "yuri:coll:back"
 CB_NOOP = "yuri:coll:noop"
 
-@router.callback_query()
-async def _catch_all_cb(q: types.CallbackQuery):
-    logger.warning("COLLECTION CATCHALL: data=%r", q.data)
-    await q.answer("ok")
 
 # -------------------- helpers --------------------
 def _cut(s: str, n: int = 20) -> str:
@@ -189,12 +185,11 @@ async def yuri_collection_page(q: types.CallbackQuery, pool):
         return
 
     parts = (q.data or "").split(":")
-    # CB_PAGE:owner_id:page
-    if len(parts) != 4:
+    if len(parts) < 5:
         return
 
-    owner_id = int(parts[2])
-    page = int(parts[3])
+    owner_id = int(parts[-2])
+    page = int(parts[-1])
 
     if q.from_user.id != owner_id:
         await q.answer("Это меню не для тебя", show_alert=True)
@@ -228,12 +223,12 @@ async def yuri_collection_open(q: types.CallbackQuery, pool):
         return
 
     parts = (q.data or "").split(":")
-    if len(parts) != 5:
+    if len(parts) < 6:
         return
 
-    owner_id = int(parts[2])
-    page = int(parts[3])
-    card_user_id = int(parts[4])
+    owner_id = int(parts[-3])
+    page = int(parts[-2])
+    card_user_id = int(parts[-1])
 
     if q.from_user.id != owner_id:
         await q.answer("Это меню не для тебя", show_alert=True)
@@ -257,11 +252,11 @@ async def yuri_collection_back(q: types.CallbackQuery, pool):
         return
 
     parts = (q.data or "").split(":")
-    if len(parts) != 5:
+    if len(parts) < 5:
         return
 
-    owner_id = int(parts[2])
-    page = int(parts[3])
+    owner_id = int(parts[-2])
+    page = int(parts[-1])
 
     if q.from_user.id != owner_id:
         await q.answer("Это меню не для тебя", show_alert=True)
