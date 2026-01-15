@@ -166,6 +166,8 @@ async def yuri_gacha_menu(message: types.Message, pool):
 
 @router.callback_query(F.data.startswith("yuri:gacha:roll:"))
 async def yuri_gacha_roll_callback(query: types.CallbackQuery, pool):
+    logger.info("CB reached. pool=%r", pool)
+
     await query.answer()
 
     parts = (query.data or "").split(":")
@@ -247,8 +249,4 @@ async def yuri_gacha_roll_callback(query: types.CallbackQuery, pool):
         pity_html=pity_html,
         reply_markup=gacha_roll_keyboard(owner_id),
     )
-
-@router.callback_query(F.data.startswith("yuri:gacha:roll:"))
-async def _debug_cb(query: types.CallbackQuery):
-    await query.answer("CB OK", show_alert=True)
 
