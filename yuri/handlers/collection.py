@@ -20,6 +20,10 @@ CB_OPEN = "yuri:coll:open"
 CB_BACK = "yuri:coll:back"
 CB_NOOP = "yuri:coll:noop"
 
+@router.callback_query()
+async def _catch_all_cb(q: types.CallbackQuery):
+    logger.warning("COLLECTION CATCHALL: data=%r", q.data)
+    await q.answer("ok")
 
 # -------------------- helpers --------------------
 def _cut(s: str, n: int = 20) -> str:
