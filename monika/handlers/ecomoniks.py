@@ -58,7 +58,7 @@ async def monika_claim_money(message: Message, pool):
         async with conn.transaction():
             row = await conn.fetchrow(
                 """
-                SELECT balance, last_claim_at
+                SELECT last_claim_at
                 FROM wallets
                 WHERE user_id = $1
                 FOR UPDATE
@@ -70,35 +70,35 @@ async def monika_claim_money(message: Message, pool):
 
             if last_claim_at is None:
                 amount = BASE_AMOUNT
-                await conn.execute(
-                    "UPDATE wallets SET last_claim_at = now() WHERE user_id = $1",
-                    user_id,
-                )
-                await add_balance(pool, user_id, username, amount)
-                await message.reply(f"Держи, вот тебе {amount} докидолларов!")
-                return
+            else:
+                elapsed = now - last_claim_at
+                available, amount, remaining = _compute_claim(elapsed)
 
-            if last_claim_at.tzinfo is None:
-                last_claim_at = last_claim_at.replace(tzinfo=timezone.utc)
-
-            elapsed = now - last_claim_at
-            available, amount, remaining = _compute_claim(elapsed)
-
-            if not available:
-                minutes = int(remaining.total_seconds() // 60)
-                seconds = int(remaining.total_seconds() % 60)
-                await message.reply(
-                    random.choice(early_reply)
-                    + f"\nПопробуй снова через {minutes} мин. и {seconds} сек."
-                )
-                return
+                if not available:
+                    minutes = int(remaining.total_seconds() // 60)
+                    seconds = int(remaining.total_seconds() % 60)
+                    await message.reply(
+                        random.choice(early_reply)
+                        + f"\nПопробуй снова через {minutes} мин. и {seconds} сек."
+                    )
+                    return
 
             await conn.execute(
-                "UPDATE wallets SET last_claim_at = now() WHERE user_id = $1",
+                """
+                UPDATE wallets
+                SET balance = balance + $2,
+                    last_claim_at = now(),
+                    username = $3,
+                    updated_at = now()
+                WHERE user_id = $1
+                """,
                 user_id,
+                amount,
+                username,
             )
-    await add_balance(pool, user_id, username, amount)
+
     await message.reply(f"Держи, вот тебе {amount} докидолларов!")
+
 
 
 @router.message((F.text.casefold().in_(["моника баланс", "баланс"])))
