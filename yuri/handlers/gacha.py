@@ -17,7 +17,7 @@ router = Router()
 
 GACHA_ROLL_CB = "yuri_gacha_roll"
 
-GACHA_MENU_TTL_MINUTES = 20
+GACHA_MENU_TTL_MINUTES = 2 * 24 * 60
 
 
 def gacha_roll_keyboard() -> InlineKeyboardMarkup:
@@ -191,10 +191,13 @@ async def yuri_gacha_roll_callback(query: types.CallbackQuery, pool):
     )
 
     if owner_id is None:
-        await query.answer(
-            "Это меню уже неактуально.\nНапиши: «юри крутка»",
-            show_alert=True,
+        await query.answer("Прошлое меню устарело - я отправлю новое", show_alert=True)
+        sent = await message.answer(
+            f"Карточка стоит <code>{ROLL_COST_DEFAULT}</code>.\nХочешь покрутить?..",
+            parse_mode="HTML",
+            reply_markup=gacha_roll_keyboard(),
         )
+        await upsert_gacha_menu(pool, sent.chat.id, sent.message_id, query.from_user.id)
         return
 
     if query.from_user.id != int(owner_id):
