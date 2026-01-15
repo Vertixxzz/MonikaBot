@@ -59,9 +59,19 @@ async def sync_presence_for_chat(bot, pool: Pool, chat_id: int, *, per_request_d
                 skipped += 1
                 logger.warning("Unknown chat member status=%r for uid=%s chat_id=%s", status, uid, chat_id)
 
+
         except Exception as e:
-            skipped += 1
-            logger.warning("Presence check failed for uid=%s chat_id=%s: %r", uid, chat_id, e)
+
+            text = str(e).lower()
+
+            if "member not found" in text or "user not found" in text:
+                updates.append((uid, False))
+                set_false += 1
+                logger.info("Presence: uid=%s chat_id=%s is absent (%s)", uid, chat_id, e)
+
+            else:
+                skipped += 1
+                logger.warning("Presence check failed for uid=%s chat_id=%s: %r", uid, chat_id, e)
 
     if updates:
         async with pool.acquire() as conn:
