@@ -332,15 +332,17 @@ def build_app() -> FastAPI:
             bot = holder["yuri_bot"]
             dp = holder["yuri_dp"]
 
-        update = Update.model_validate(await request.json())
+        payload = await request.json()
 
         logger.warning(
-            "IN %s: upd=%s cb=%s data=%r",
+            "RAW %s update keys=%s",
             which,
-            update.update_id,
-            update.callback_query is not None,
-            (update.callback_query.data if update.callback_query else None),
+            sorted(payload.keys()),
         )
+
+        logger.warning("RAW %s callback_query=%s", which, "callback_query" in payload)
+
+        update = Update.model_validate(await request.json())
 
         await dp.feed_update(bot, update)  # type: ignore[arg-type]
         return {"ok": True}
