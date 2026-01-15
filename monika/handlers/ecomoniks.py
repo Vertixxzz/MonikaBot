@@ -9,9 +9,29 @@ from datetime import datetime, timedelta, timezone
 from cfg import ADMIN_LIST
 from aiogram.filters import Command
 
+BASE_AMOUNT = 200
+COOLDOWN = timedelta(hours=2)
+ACCUM_DURATION = timedelta(hours=4)
+RATE_PER_HOUR = 100
+MAX_AMOUNT = BASE_AMOUNT + int(ACCUM_DURATION.total_seconds() / 3600) * RATE_PER_HOUR
+
 router = Router()
 early_reply = ["Успеется, хапуга.", "Терпение - добродетель.", "Я только недавно давала тебе денег!","иди нахуй"]
 
+def _compute_claim(elapsed: timedelta) -> tuple[bool, int, timedelta]:
+    if elapsed < COOLDOWN:
+        return False, 0, (COOLDOWN - elapsed)
+
+    after = elapsed - COOLDOWN
+    capped_after = min(after, ACCUM_DURATION)
+
+    hours = capped_after.total_seconds() / 3600.0
+    amount = BASE_AMOUNT + int(hours * RATE_PER_HOUR)
+
+    if amount > MAX_AMOUNT:
+        amount = MAX_AMOUNT
+
+    return True, amount, timedelta(0)
 
 def to_utc_naive(dt):
     if dt is None:
@@ -27,34 +47,57 @@ async def monika_claim_money(message: Message, pool):
 
     await add_wallet(pool, user_id, username)
 
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow("""
-            SELECT balance, updated_at
-            FROM wallets
-            WHERE user_id = $1
-        """, user_id)
-
     if user_id in ADMIN_LIST:
         amount = random.randint(25, 75)
         await add_balance(pool, user_id, username, amount)
         await message.reply(f"Держи легенда @{username}, вот тебе {amount} докидолларов!")
         return
 
-    now = datetime.utcnow()
-    if row and row["updated_at"]:
-        last = to_utc_naive(row["updated_at"])
-        delta = now - last
-        if delta < timedelta(hours=1):
-            remaining = timedelta(hours=1) - delta
-            minutes = int(remaining.total_seconds() // 60)
-            seconds = int(remaining.total_seconds() % 60)
-            await message.reply(
-                random.choice(early_reply)
-                + f"\nПопробуй снова через {minutes} мин. и {seconds} сек."
-            )
-            return
+    now = datetime.now(timezone.utc)
 
-    amount = random.randint(25, 75)
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                """
+                SELECT balance, last_claim_at
+                FROM wallets
+                WHERE user_id = $1
+                FOR UPDATE
+                """,
+                user_id,
+            )
+
+            last_claim_at = row["last_claim_at"] if row else None
+
+            if last_claim_at is None:
+                amount = BASE_AMOUNT
+                await conn.execute(
+                    "UPDATE wallets SET last_claim_at = now() WHERE user_id = $1",
+                    user_id,
+                )
+                await add_balance(pool, user_id, username, amount)
+                await message.reply(f"Держи, вот тебе {amount} докидолларов!")
+                return
+
+            if last_claim_at.tzinfo is None:
+                last_claim_at = last_claim_at.replace(tzinfo=timezone.utc)
+
+            elapsed = now - last_claim_at
+            available, amount, remaining = _compute_claim(elapsed)
+
+            if not available:
+                minutes = int(remaining.total_seconds() // 60)
+                seconds = int(remaining.total_seconds() % 60)
+                await message.reply(
+                    random.choice(early_reply)
+                    + f"\nПопробуй снова через {minutes} мин. и {seconds} сек."
+                )
+                return
+
+            await conn.execute(
+                "UPDATE wallets SET last_claim_at = now() WHERE user_id = $1",
+                user_id,
+            )
     await add_balance(pool, user_id, username, amount)
     await message.reply(f"Держи, вот тебе {amount} докидолларов!")
 

@@ -17,13 +17,15 @@ PITY_LEGENDARY = 70
 LEGACY_OVERRIDE_DENOM = 20  # 1/20
 
 RARITY_PROBS = [
+    ("THE CREATOR",   0.005),
     ("LEGENDARY", 0.02),
-    ("EPIC", 0.15),
-    ("RARE", 0.33),
-    ("COMMON", 0.50),
+    ("EPIC",      0.15),
+    ("RARE",      0.33),
+    ("COMMON",    0.495),
 ]
 
 RARITY_DOWNGRADE = {
+    "THE CREATOR": "LEGENDARY",
     "LEGENDARY": "EPIC",
     "EPIC": "RARE",
     "RARE": "COMMON",

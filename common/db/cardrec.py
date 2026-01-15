@@ -53,7 +53,10 @@ async def recalculate_cards_for_chat(conn, chat_id: int) -> int:
             )
             VALUES ($1, $2, $3, $4, $5, $6, 'ACTIVE')
             ON CONFLICT (chat_id, user_id) DO UPDATE SET
-                rarity = EXCLUDED.rarity,
+                rarity = CASE
+                    WHEN user_cards.rarity_locked THEN user_cards.rarity
+                    ELSE EXCLUDED.rarity
+                END,
                 percentile = EXCLUDED.percentile,
                 messages_total = EXCLUDED.messages_total,
                 calculated_at = EXCLUDED.calculated_at,

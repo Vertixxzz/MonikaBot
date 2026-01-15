@@ -31,6 +31,8 @@ def _cut(s: str, n: int = 20) -> str:
 
 def _rarity_emoji(rarity: str) -> str:
     r = (rarity or "").upper()
+    if r == "THE CREATOR":
+        return "💠"
     if r == "LEGENDARY":
         return "🟨"
     if r == "EPIC":
@@ -72,6 +74,7 @@ async def _fetch_collection_page(pool, chat_id: int, owner_id: int, page: int):
               AND gi.owner_id = $2
             ORDER BY
               CASE uc.rarity
+                WHEN 'THE CREATOR' THEN 5              
                 WHEN 'LEGENDARY' THEN 4
                 WHEN 'EPIC' THEN 3
                 WHEN 'RARE' THEN 2
