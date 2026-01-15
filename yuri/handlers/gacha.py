@@ -17,7 +17,7 @@ router = Router()
 
 GACHA_ROLL_CB = "yuri_gacha_roll"
 
-GACHA_MENU_TTL_MINUTES = 2 * 24 * 60
+GACHA_MENU_TTL_MINUTES = 20
 
 
 def gacha_roll_keyboard() -> InlineKeyboardMarkup:
@@ -75,7 +75,7 @@ async def send_card_by_user_id(
     top_html: str = "",
     pity_html: str = "",
     reply_markup: InlineKeyboardMarkup | None = None,
-):
+) -> types.Message | None:
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
@@ -95,7 +95,7 @@ async def send_card_by_user_id(
 
     if not row:
         await message.answer("Карточка не найдена")
-        return
+        return None
 
     rarity = str(row["rarity"])
     state = str(row["state"])
@@ -118,7 +118,7 @@ async def send_card_by_user_id(
         + (f"{top_html}\n\n" if top_html else "\n")
         + f"Редкость: <b>{_esc(rarity_text)}</b>\n"
         + f"Сообщений учтено: <code>{messages_total}</code>\n"
-        + f"Активнее, чем ~<code>{percentile:.1f}%</code> участников этого чата\n\n"
+        + f"Активнее, чем ~<code>{100 - percentile:.1f}%</code> участников этого чата\n\n"
         + (f"{pity_html}\n\n" if pity_html else "")
         + f"<i>Последнее обновление: {calculated_at:%d.%m.%Y}</i>"
         + f"{footer}"
@@ -129,33 +129,39 @@ async def send_card_by_user_id(
     try:
         if avatar_file_id and state == "LEGACY":
             photo = await get_legacy_avatar(message.bot, avatar_file_id)
-            await message.answer_photo(
+            sent = await message.answer_photo(
                 photo=photo,
                 caption=caption,
                 parse_mode="HTML",
                 reply_markup=reply_markup,
             )
-        elif avatar_file_id:
-            await message.answer_photo(
+            return sent
+
+        if avatar_file_id:
+            sent = await message.answer_photo(
                 photo=avatar_file_id,
                 caption=caption,
                 parse_mode="HTML",
                 reply_markup=reply_markup,
             )
-        else:
-            await message.answer(
-                caption,
-                parse_mode="HTML",
-                reply_markup=reply_markup,
-            )
+            return sent
 
-    except Exception:
-        logger.exception("Failed to send gacha card")
-        await message.answer(
+        sent = await message.answer(
             caption,
             parse_mode="HTML",
             reply_markup=reply_markup,
         )
+        return sent
+
+    except Exception:
+        logger.exception("Failed to send gacha card")
+        sent = await message.answer(
+            caption,
+            parse_mode="HTML",
+            reply_markup=reply_markup,
+        )
+        return sent
+
 
 @router.message(F.text.func(lambda t: t and t.lower().strip() == "юри крутка"))
 async def yuri_gacha_menu(message: types.Message, pool):
@@ -263,7 +269,7 @@ async def yuri_gacha_roll_callback(query: types.CallbackQuery, pool):
         since_legendary=int(getattr(result, "since_legendary", 0) or 0),
     )
 
-    await send_card_by_user_id(
+    sent_card = await send_card_by_user_id(
         message=message,
         pool=pool,
         chat_id=chat_id,
@@ -273,5 +279,14 @@ async def yuri_gacha_roll_callback(query: types.CallbackQuery, pool):
         pity_html=pity_html,
         reply_markup=gacha_roll_keyboard(),
     )
+
+    if sent_card:
+        await upsert_gacha_menu(
+            pool=pool,
+            chat_id=sent_card.chat.id,
+            message_id=sent_card.message_id,
+            owner_id=query.from_user.id,
+        )
+
 
 
