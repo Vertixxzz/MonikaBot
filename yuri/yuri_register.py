@@ -6,6 +6,7 @@ from .handlers.help import router as help_router
 from .handlers.card import router as card_router
 from .handlers.recalculate import router as recalculate_router
 from .handlers.gacha import router as gacha_router
+from .handlers.collection import router as collection_router
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,7 @@ def register_yuri_middlewares(dp: Dispatcher):
 def register_yuri_handlers(dp: Dispatcher) -> None:
 
     routers: tuple[Router, ...] = (
+        collection_router,
         gacha_router,
         help_router,
         card_router,
