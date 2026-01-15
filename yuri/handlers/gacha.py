@@ -168,8 +168,7 @@ async def yuri_gacha_menu(message: types.Message, pool):
     me = await message.bot.get_me()
     await message.answer(
         f"Карточка стоит <code>{ROLL_COST_DEFAULT}</code>.\n"
-        f"Хочешь покрутить?.. \n"
-        f"<b>sender:</b> <code>{me.id}</code> <code>@{me.username}</code>",
+        f"Хочешь покрутить?.. \n",
         parse_mode="HTML",
         reply_markup=gacha_roll_keyboard(message.from_user.id),
     )
