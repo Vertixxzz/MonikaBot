@@ -1,7 +1,6 @@
 import logging
 from aiogram import Router, types, F
 from common.db.cardrec import recalculate_cards_for_chat
-from cfg import ADMIN_LIST
 
 logger = logging.getLogger(__name__)
 
