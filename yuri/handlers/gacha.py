@@ -92,14 +92,14 @@ async def yuri_roll(message: types.Message, pool):
             bal = int(bal or 0)
 
             await message.answer(
-                f"Не хватает монеток 🥺\n"
+                f"Тебе не хватает докидолларов\n"
                 f"Нужно: `{ROLL_COST_DEFAULT}`\n"
                 f"У тебя: `{bal}`",
                 parse_mode="Markdown",
             )
             return
 
-        await message.answer("Пул карточек пустой 😿")
+        await message.answer("Пул карточек пустой")
         return
 
     await send_card_by_user_id(
