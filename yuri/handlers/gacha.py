@@ -1,12 +1,12 @@
-# /yuri/handlers/gacha.py
+from __future__ import annotations
 
 import logging
 import html
-import asyncio
 
 from aiogram import Router, types, F
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.filters.callback_data import CallbackData
 
 from common.db.gacha import roll_once, ROLL_COST_DEFAULT
 from common.db.utilities import get_usernames_by_ids
@@ -16,11 +16,22 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
+# ---------- CallbackData (вместо ручного split) ----------
+
+class YuriGachaRollCb(CallbackData, prefix="yuri_gacha_roll"):
+    owner_id: int
+
+
 def gacha_roll_keyboard(owner_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.button(text="Крутить", callback_data=f"yuri:gacha:roll:{owner_id}")
+    kb.button(
+        text="Крутить",
+        callback_data=YuriGachaRollCb(owner_id=owner_id).pack(),
+    )
     return kb.as_markup()
 
+
+# ---------- helpers ----------
 
 def _esc(s: str) -> str:
     return html.escape(s, quote=True)
@@ -34,16 +45,17 @@ def _format_user_link(user_id: int, username: str | None) -> str:
         if label.startswith("@"):
             label = label[1:]
         label = label.strip() or "Юзер"
-
     return f'<a href="tg://user?id={user_id}">{_esc(label)}</a>'
 
 
 def _build_roll_top_html(dropped_user_id: int, dropped_username: str | None, copies: int) -> str:
     user_link = _format_user_link(dropped_user_id, dropped_username)
-    return "\n".join([
-        f"Пользователь: {user_link}",
-        f"Копий этой карточки: <b>x{int(copies)}</b>",
-    ])
+    return "\n".join(
+        [
+            f"Пользователь: {user_link}",
+            f"Копий этой карточки: <b>x{int(copies)}</b>",
+        ]
+    )
 
 
 def _build_pity_html(since_epic: int, since_legendary: int) -> str:
@@ -52,11 +64,12 @@ def _build_pity_html(since_epic: int, since_legendary: int) -> str:
     epic_left = max(0, 30 - since_epic)
     lega_left = max(0, 70 - since_legendary)
 
-    return "\n".join([
-        f"Гарант EPIC: <code>{since_epic}/30</code> (осталось ~<code>{epic_left}</code>)",
-        f"Гарант LEGENDARY: <code>{since_legendary}/70</code> (осталось ~<code>{lega_left}</code>)",
-    ])
-
+    return "\n".join(
+        [
+            f"Гарант EPIC: <code>{since_epic}/30</code> (осталось ~<code>{epic_left}</code>)",
+            f"Гарант LEGENDARY: <code>{since_legendary}/70</code> (осталось ~<code>{lega_left}</code>)",
+        ]
+    )
 
 
 async def send_card_by_user_id(
@@ -128,7 +141,6 @@ async def send_card_by_user_id(
                 parse_mode="HTML",
                 reply_markup=reply_markup,
             )
-
         elif avatar_file_id:
             await message.answer_photo(
                 photo=avatar_file_id,
@@ -136,14 +148,12 @@ async def send_card_by_user_id(
                 parse_mode="HTML",
                 reply_markup=reply_markup,
             )
-
         else:
             await message.answer(
                 caption,
                 parse_mode="HTML",
                 reply_markup=reply_markup,
             )
-
     except Exception:
         logger.exception("Failed to send gacha card")
         await message.answer(
@@ -151,6 +161,7 @@ async def send_card_by_user_id(
             parse_mode="HTML",
             reply_markup=reply_markup,
         )
+
 
 
 @router.message(F.text.func(lambda t: t and t.lower().strip() == "юри крутка"))
@@ -163,25 +174,23 @@ async def yuri_gacha_menu(message: types.Message, pool):
     )
 
 
-
-@router.callback_query(F.data.startswith("yuri:gacha:roll:"))
-async def yuri_gacha_roll_callback(query: types.CallbackQuery, pool):
-    logger.info("CB reached. pool=%r", pool)
-
-    await query.answer()
-
-    parts = (query.data or "").split(":")
-    if len(parts) != 4:
+@router.callback_query(YuriGachaRollCb.filter())
+async def yuri_gacha_roll_callback(
+    query: types.CallbackQuery,
+    callback_data: YuriGachaRollCb,
+    pool,
+):
+    if not query.message:
+        await query.answer("Нет сообщения у callback", show_alert=True)
         return
 
-    try:
-        owner_id = int(parts[3])
-    except ValueError:
-        return
+    owner_id = int(callback_data.owner_id)
 
     if query.from_user.id != owner_id:
         await query.answer("Это кнопка не для тебя", show_alert=True)
         return
+
+    await query.answer()
 
     try:
         await query.message.edit_reply_markup(reply_markup=None)
@@ -190,6 +199,7 @@ async def yuri_gacha_roll_callback(query: types.CallbackQuery, pool):
 
     message = query.message
     chat_id = message.chat.id
+
     user = query.from_user
     user_id = user.id
     username = user.username or user.full_name or "unknown"
