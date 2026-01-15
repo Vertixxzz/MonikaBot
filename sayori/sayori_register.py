@@ -19,7 +19,7 @@ def register_sayori_handlers(dp: Dispatcher) -> None:
 
     routers: tuple[Router, ...] = (
         help_router,
-        duels_router
+        duels_router,
         hangman_router,
         roleplay_router,
     )
