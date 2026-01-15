@@ -23,10 +23,6 @@ async def get_user_id_by_username(pool, username: str) -> int | None:
 
 
 async def get_usernames_by_ids(pool, user_ids: list[int]) -> dict[int, str]:
-    """
-    user_id -> username (самый свежий по last_message_date).
-    Если по user_id нет записи/username, ключа не будет.
-    """
     if not user_ids:
         return {}
 

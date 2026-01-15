@@ -1,14 +1,51 @@
+# /yuri/handlers/gacha.py
+
 import logging
 from aiogram import Router, types, F
 
-from common.db.gacha import roll_once, ROLL_COST_DEFAULT
+from common.bd.gacha import roll_once, ROLL_COST_DEFAULT
+from common.db.utilities import get_usernames_by_ids
 from yuri.handlers.card import get_user_avatar_file_id, get_legacy_avatar
 
 logger = logging.getLogger(__name__)
 router = Router()
 
 
-async def send_card_by_user_id(message: types.Message, pool, chat_id: int, target_user_id: int, header: str):
+def _format_user_display(username: str | None, user_id: int) -> str:
+    if not username:
+        return f"`id {user_id}`"
+    u = username.strip()
+    if u.startswith("@"):
+        return f"{u}"
+    if " " not in u and not u.startswith("#"):
+        return f"@{u}"
+    return f"*{u}*"
+
+
+def _build_roll_extra_text(dropped_user_id: int, dropped_username: str | None, copies: int, since_epic: int, since_legendary: int) -> str:
+    epic_left = max(0, 30 - int(since_epic))
+    lega_left = max(0, 70 - int(since_legendary))
+
+    user_text = _format_user_display(dropped_username, dropped_user_id)
+
+    lines = [
+        f"Пользователь: {user_text}",
+        f"Копий этой карточки: *x{copies}*",
+        "",
+        f"Гарант EPIC: `{since_epic}/30` (осталось ~`{epic_left}`)",
+        f"Гарант LEGENDARY: `{since_legendary}/70` (осталось ~`{lega_left}`)",
+    ]
+    return "\n".join(lines)
+
+
+async def send_card_by_user_id(
+    message: types.Message,
+    pool,
+    chat_id: int,
+    target_user_id: int,
+    header: str,
+    extra_text: str = "",
+):
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
@@ -47,12 +84,13 @@ async def send_card_by_user_id(message: types.Message, pool, chat_id: int, targe
         footer = ""
 
     caption = (
-        f"*{header}*\n\n"
-        f"Редкость: *{rarity_text}*\n"
-        f"Сообщений учтено: `{messages_total}`\n"
-        f"Активнее, чем ~`{percentile:.1f}%` участников этого чата\n\n"
-        f"_Последнее обновление: {calculated_at:%d.%m.%Y}_"
-        f"{footer}"
+        f"*{header}*\n"
+        + (f"{extra_text}\n\n" if extra_text else "\n")
+        + f"Редкость: *{rarity_text}*\n"
+        + f"Сообщений учтено: `{messages_total}`\n"
+        + f"Активнее, чем ~`{percentile:.1f}%` участников этого чата\n\n"
+        + f"_Последнее обновление: {calculated_at:%d.%m.%Y}_"
+        + f"{footer}"
     )
 
     avatar_file_id = await get_user_avatar_file_id(message.bot, target_user_id)
@@ -90,9 +128,8 @@ async def yuri_roll(message: types.Message, pool):
             async with pool.acquire() as conn:
                 bal = await conn.fetchval("SELECT balance FROM wallets WHERE user_id = $1", user_id)
             bal = int(bal or 0)
-
             await message.answer(
-                f"Тебе не хватает докидолларов\n"
+                f"Не хватает докидолларов\n"
                 f"Нужно: `{ROLL_COST_DEFAULT}`\n"
                 f"У тебя: `{bal}`",
                 parse_mode="Markdown",
@@ -102,10 +139,24 @@ async def yuri_roll(message: types.Message, pool):
         await message.answer("Пул карточек пустой")
         return
 
+    dropped_user_id = int(result.dropped_user_id)
+
+    names = await get_usernames_by_ids(pool, [dropped_user_id])
+    dropped_username = names.get(dropped_user_id)
+
+    extra_text = _build_roll_extra_text(
+        dropped_user_id=dropped_user_id,
+        dropped_username=dropped_username,
+        copies=int(getattr(result, "copies", 0) or 0),
+        since_epic=int(getattr(result, "since_epic", 0) or 0),
+        since_legendary=int(getattr(result, "since_legendary", 0) or 0),
+    )
+
     await send_card_by_user_id(
         message=message,
         pool=pool,
         chat_id=chat_id,
-        target_user_id=int(result.dropped_user_id),
+        target_user_id=dropped_user_id,
         header="Твоя крутка",
+        extra_text=extra_text,
     )

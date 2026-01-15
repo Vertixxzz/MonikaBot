@@ -1,7 +1,6 @@
 from asyncpg import Pool
 
 
-# Получаем информацию о промокоде
 async def get_promo(pool: Pool, code: str):
     async with pool.acquire() as conn:
         return await conn.fetchrow("""
@@ -12,7 +11,6 @@ async def get_promo(pool: Pool, code: str):
         """, code)
 
 
-# Проверяем, использовал ли пользователь этот промокод
 async def check_promo_usage(pool: Pool, user_id: int, promo_id: int) -> bool:
     async with pool.acquire() as conn:
         row = await conn.fetchrow("""
@@ -22,7 +20,6 @@ async def check_promo_usage(pool: Pool, user_id: int, promo_id: int) -> bool:
         return row is not None
 
 
-# Записываем факт использования промокода
 async def mark_promo_used(pool: Pool, user_id: int, promo_id: int):
     async with pool.acquire() as conn:
         await conn.execute("""

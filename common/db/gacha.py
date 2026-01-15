@@ -40,6 +40,10 @@ class RollResult:
     dropped_user_id: Optional[int] = None
     reason: Optional[FailReason] = None
     spent: int = 0
+    copies: int = 0
+    since_epic: int = 0
+    since_legendary: int = 0
+
 
 
 def _roll_rarity_with_pity(since_epic: int, since_legendary: int) -> str:
@@ -156,8 +160,8 @@ async def _pick_card_user_id(conn, chat_id: int, starting_rarity: str) -> Option
     return None
 
 
-async def _add_to_inventory(conn, chat_id: int, owner_id: int, card_user_id: int) -> None:
-    await conn.execute(
+async def _add_to_inventory(conn, chat_id: int, owner_id: int, card_user_id: int) -> int:
+    copies = await conn.fetchval(
         """
         INSERT INTO gacha_inventory (chat_id, owner_id, card_user_id, copies, last_drop_at)
         VALUES ($1, $2, $3, 1, now())
@@ -165,9 +169,12 @@ async def _add_to_inventory(conn, chat_id: int, owner_id: int, card_user_id: int
         DO UPDATE SET
           copies = gacha_inventory.copies + 1,
           last_drop_at = now()
+        RETURNING copies
         """,
         chat_id, owner_id, card_user_id,
     )
+    return int(copies or 0)
+
 
 
 async def _apply_pity_update(conn, chat_id: int, user_id: int, dropped_rarity: str) -> None:
@@ -242,7 +249,30 @@ async def roll_once(pool: Pool, chat_id: int, user_id: int, username: str, cost:
             )
             dropped_rarity = str(dropped_rarity)
 
-            await _add_to_inventory(conn, chat_id, user_id, dropped_user_id)
+            copies = await _add_to_inventory(conn, chat_id, user_id, dropped_user_id)
             await _apply_pity_update(conn, chat_id, user_id, dropped_rarity)
 
-            return RollResult(ok=True, dropped_user_id=dropped_user_id, spent=cost)
+            since_epic_now, since_legendary_now = await _get_pity_state(conn, chat_id, user_id)
+
+            return RollResult(
+                ok=True,
+                dropped_user_id=dropped_user_id,
+                spent=cost,
+                copies=copies,
+                since_epic=since_epic_now,
+                since_legendary=since_legendary_now,
+            )
+
+
+async def _get_pity_state(conn, chat_id: int, user_id: int) -> tuple[int, int]:
+    row = await conn.fetchrow(
+        """
+        SELECT since_epic, since_legendary
+        FROM gacha_state
+        WHERE chat_id = $1 AND user_id = $2
+        """,
+        chat_id, user_id,
+    )
+    if not row:
+        return 0, 0
+    return int(row["since_epic"]), int(row["since_legendary"])
