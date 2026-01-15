@@ -43,6 +43,8 @@ from sayori.sayori_register import (
 )
 from yuri.yuri_register import register_yuri_handlers
 
+ALLOWED_UPDATES = ["message", "callback_query"]
+
 
 # ================= LOGGING =================
 DEBUG = RUN_MODE.upper() == "DEBUG"
@@ -216,14 +218,17 @@ def build_app() -> FastAPI:
         await monika_bot.set_webhook(
             f"{BASE_URL}{path_monika}",
             secret_token=SECRET_TOKEN_MONIKA,
+            allowed_updates=ALLOWED_UPDATES,
         )
         await sayori_bot.set_webhook(
             f"{BASE_URL}{path_sayori}",
             secret_token=SECRET_TOKEN_SAYORI,
+            allowed_updates=ALLOWED_UPDATES,
         )
         await yuri_bot.set_webhook(
             f"{BASE_URL}{path_yuri}",
             secret_token=SECRET_TOKEN_YURI,
+            allowed_updates=ALLOWED_UPDATES,
         )
 
     async def webhook_retry_loop(monika_bot: Bot, sayori_bot: Bot, yuri_bot: Bot) -> None:
