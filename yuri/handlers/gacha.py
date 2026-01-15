@@ -31,15 +31,20 @@ def _esc(s: str) -> str:
 
 
 def _format_user_link(user_id: int, username: str | None) -> str:
-    if not username:
-        label = "Юзер"
-    else:
-        label = username.strip()
-        if label.startswith("@"):
-            label = label[1:]
-        label = label.strip() or "Юзер"
+    if not username or not username.strip():
+        return "Юзер"
 
-    return f'<a href="tg://user?id={user_id}">{_esc(label)}</a>'
+    u = username.strip()
+    if u.startswith("@"):
+        u = u[1:].strip()
+
+    if not u:
+        return "Юзер"
+
+    label = u
+
+    return f'<a href="https://t.me/{_esc(u)}">{_esc(label)}</a>'
+
 
 
 def _build_roll_top_html(dropped_user_id: int, dropped_username: str | None, copies: int) -> str:
