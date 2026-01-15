@@ -15,6 +15,11 @@ from yuri.handlers.card import get_user_avatar_file_id, get_legacy_avatar
 logger = logging.getLogger(__name__)
 router = Router()
 
+@router.callback_query()
+async def _catch_all_cb(q: types.CallbackQuery):
+    logger.warning("YURI CATCH-ALL CB: data=%r", q.data)
+    await q.answer("YURI поймала callback", show_alert=True)
+
 
 # ---------- CallbackData (вместо ручного split) ----------
 
