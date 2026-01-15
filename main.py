@@ -226,28 +226,29 @@ def build_app() -> FastAPI:
             secret_token=SECRET_TOKEN_YURI,
         )
 
-    async def log_webhook_info(name: str, bot: Bot):
-        info = await bot.get_webhook_info()
-        logger.warning(
-            "%s webhook_info: url=%r pending=%s last_error=%r",
-            name,
-            info.url,
-            info.pending_update_count,
-            getattr(info, "last_error_message", None),
-        )
-
-    await log_webhook_info("monika", monika_bot)
-    await log_webhook_info("sayori", sayori_bot)
-    await log_webhook_info("yuri", yuri_bot)
-
     async def webhook_retry_loop(monika_bot: Bot, sayori_bot: Bot, yuri_bot: Bot) -> None:
         schedule = [5, 10, 15, 20, 25, 30]
         attempt = 0
+
+        async def log_webhook_info(name: str, bot: Bot):
+            info = await bot.get_webhook_info()
+            logger.warning(
+                "%s webhook_info: url=%r pending=%s last_error=%r",
+                name,
+                info.url,
+                info.pending_update_count,
+                getattr(info, "last_error_message", None),
+            )
 
         while True:
             try:
                 await set_all_webhooks(monika_bot, sayori_bot, yuri_bot)
                 logger.info("Webhooks set for all bots")
+
+                await log_webhook_info("monika", monika_bot)
+                await log_webhook_info("sayori", sayori_bot)
+                await log_webhook_info("yuri", yuri_bot)
+
                 return
             except Exception as e:
                 delay = schedule[attempt] if attempt < len(schedule) else 30
