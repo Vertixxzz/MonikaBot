@@ -1,9 +1,10 @@
 # /yuri/handlers/gacha.py
 
 import logging
+import html
 from aiogram import Router, types, F
 
-from common.db.gacha import roll_once, ROLL_COST_DEFAULT
+from common.bd.gacha import roll_once, ROLL_COST_DEFAULT
 from common.db.utilities import get_usernames_by_ids
 from yuri.handlers.card import get_user_avatar_file_id, get_legacy_avatar
 
@@ -11,31 +12,41 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-def _format_user_display(username: str | None, user_id: int) -> str:
+def _esc(s: str) -> str:
+    return html.escape(s, quote=True)
+
+
+def _format_user_link(user_id: int, username: str | None) -> str:
     if not username:
-        return f"`id {user_id}`"
-    u = username.strip()
-    if u.startswith("@"):
-        return f"{u}"
-    if " " not in u and not u.startswith("#"):
-        return f"@{u}"
-    return f"*{u}*"
+        label = "Юзер"
+    else:
+        label = username.strip()
+        if label.startswith("@"):
+            label = label[1:]
+        label = label.strip() or "Юзер"
+
+    return f'<a href="tg://user?id={user_id}">{_esc(label)}</a>'
 
 
-def _build_roll_extra_text(dropped_user_id: int, dropped_username: str | None, copies: int, since_epic: int, since_legendary: int) -> str:
-    epic_left = max(0, 30 - int(since_epic))
-    lega_left = max(0, 70 - int(since_legendary))
 
-    user_text = _format_user_display(dropped_username, dropped_user_id)
+def _build_roll_top_html(dropped_user_id: int, dropped_username: str | None, copies: int) -> str:
+    user_link = _format_user_link(dropped_user_id, dropped_username)
+    return "\n".join([
+        f"Пользователь: {user_link}",
+        f"Копий этой карточки: <b>x{int(copies)}</b>",
+    ])
 
-    lines = [
-        f"Пользователь: {user_text}",
-        f"Копий этой карточки: *x{copies}*",
-        "",
-        f"Гарант EPIC: `{since_epic}/30` (осталось ~`{epic_left}`)",
-        f"Гарант LEGENDARY: `{since_legendary}/70` (осталось ~`{lega_left}`)",
-    ]
-    return "\n".join(lines)
+
+def _build_pity_html(since_epic: int, since_legendary: int) -> str:
+    since_epic = int(since_epic)
+    since_legendary = int(since_legendary)
+    epic_left = max(0, 30 - since_epic)
+    lega_left = max(0, 70 - since_legendary)
+
+    return "\n".join([
+        f"Гарант EPIC: <code>{since_epic}/30</code> (осталось ~<code>{epic_left}</code>)",
+        f"Гарант LEGENDARY: <code>{since_legendary}/70</code> (осталось ~<code>{lega_left}</code>)",
+    ])
 
 
 async def send_card_by_user_id(
@@ -44,7 +55,8 @@ async def send_card_by_user_id(
     chat_id: int,
     target_user_id: int,
     header: str,
-    extra_text: str = "",
+    top_html: str = "",
+    pity_html: str = "",
 ):
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -67,29 +79,30 @@ async def send_card_by_user_id(
         await message.answer("Карточка не найдена")
         return
 
-    rarity = row["rarity"]
-    state = row["state"]
-    percentile = row["percentile"] * 100
-    messages_total = row["messages_total"]
+    rarity = str(row["rarity"])
+    state = str(row["state"])
+    percentile = float(row["percentile"]) * 100
+    messages_total = int(row["messages_total"])
     calculated_at = row["calculated_at"]
 
     if state == "LEGACY":
-        rarity_text = f"{rarity}, LEGACY ️"
+        rarity_text = f"{rarity}, LEGACY"
         footer = (
-            "\n\n_Эта карточка больше не создаётся._\n"
-            "_Но я всё ещё её помню._"
+            "\n\n<i>Эта карточка больше не создаётся.</i>\n"
+            "<i>Но я всё ещё её помню.</i>"
         )
     else:
         rarity_text = rarity
         footer = ""
 
     caption = (
-        f"*{header}*\n"
-        + (f"{extra_text}\n\n" if extra_text else "\n")
-        + f"Редкость: *{rarity_text}*\n"
-        + f"Сообщений учтено: `{messages_total}`\n"
-        + f"Активнее, чем ~`{percentile:.1f}%` участников этого чата\n\n"
-        + f"_Последнее обновление: {calculated_at:%d.%m.%Y}_"
+        f"<b>{_esc(header)}</b>\n"
+        + (f"{top_html}\n\n" if top_html else "\n")
+        + f"Редкость: <b>{_esc(rarity_text)}</b>\n"
+        + f"Сообщений учтено: <code>{messages_total}</code>\n"
+        + f"Активнее, чем ~<code>{percentile:.1f}%</code> участников этого чата\n\n"
+        + (f"{pity_html}\n\n" if pity_html else "")
+        + f"<i>Последнее обновление: {calculated_at:%d.%m.%Y}</i>"
         + f"{footer}"
     )
 
@@ -98,14 +111,14 @@ async def send_card_by_user_id(
     try:
         if avatar_file_id and state == "LEGACY":
             photo = await get_legacy_avatar(message.bot, avatar_file_id)
-            await message.answer_photo(photo=photo, caption=caption, parse_mode="Markdown")
+            await message.answer_photo(photo=photo, caption=caption, parse_mode="HTML")
         elif avatar_file_id:
-            await message.answer_photo(photo=avatar_file_id, caption=caption, parse_mode="Markdown")
+            await message.answer_photo(photo=avatar_file_id, caption=caption, parse_mode="HTML")
         else:
-            await message.answer(caption, parse_mode="Markdown")
+            await message.answer(caption, parse_mode="HTML")
     except Exception:
         logger.exception("Failed to send gacha card")
-        await message.answer(caption, parse_mode="Markdown")
+        await message.answer(caption, parse_mode="HTML")
 
 
 @router.message(F.text.func(lambda t: t and t.lower().strip() == "юри крутка"))
@@ -129,10 +142,10 @@ async def yuri_roll(message: types.Message, pool):
                 bal = await conn.fetchval("SELECT balance FROM wallets WHERE user_id = $1", user_id)
             bal = int(bal or 0)
             await message.answer(
-                f"Не хватает докидолларов\n"
-                f"Нужно: `{ROLL_COST_DEFAULT}`\n"
-                f"У тебя: `{bal}`",
-                parse_mode="Markdown",
+                "Не хватает докидолларов\n"
+                f"Нужно: <code>{ROLL_COST_DEFAULT}</code>\n"
+                f"У тебя: <code>{bal}</code>",
+                parse_mode="HTML",
             )
             return
 
@@ -144,10 +157,13 @@ async def yuri_roll(message: types.Message, pool):
     names = await get_usernames_by_ids(pool, [dropped_user_id])
     dropped_username = names.get(dropped_user_id)
 
-    extra_text = _build_roll_extra_text(
+    top_html = _build_roll_top_html(
         dropped_user_id=dropped_user_id,
         dropped_username=dropped_username,
         copies=int(getattr(result, "copies", 0) or 0),
+    )
+
+    pity_html = _build_pity_html(
         since_epic=int(getattr(result, "since_epic", 0) or 0),
         since_legendary=int(getattr(result, "since_legendary", 0) or 0),
     )
@@ -158,5 +174,8 @@ async def yuri_roll(message: types.Message, pool):
         chat_id=chat_id,
         target_user_id=dropped_user_id,
         header="Твоя крутка",
-        extra_text=extra_text,
+        top_html=top_html,
+        pity_html=pity_html,
     )
+
+
