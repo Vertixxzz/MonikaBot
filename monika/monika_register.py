@@ -48,7 +48,6 @@ def register_monika_handlers(dp: Dispatcher) -> None:
         day_router,
         beer_router,
         dinki_router,
-        sr_router,
         translate_router,
         alive_router,
         ec_router,
