@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from io import BytesIO
-
+from aiogram import Router
 from PIL import Image
 from aiogram import Bot
 from aiogram.types import BufferedInputFile
