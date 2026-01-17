@@ -7,7 +7,7 @@ from PIL import Image
 from aiogram import Bot
 from aiogram.types import BufferedInputFile
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramNetworkError
-
+from common.db.utilities import get_user_id_by_username
 logger = logging.getLogger(__name__)
 router = Router()
 
