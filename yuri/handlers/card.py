@@ -4,7 +4,7 @@ import logging
 from io import BytesIO
 from aiogram import Router
 from PIL import Image
-from aiogram import Bot
+from aiogram import Router, Bot, types, F
 from aiogram.types import BufferedInputFile
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramNetworkError
 from common.db.utilities import get_user_id_by_username
@@ -155,11 +155,19 @@ async def show_user_card(message: types.Message, pool):
     try:
         if avatar_file_id and state == "LEGACY":
             photo = await get_legacy_avatar(message.bot, avatar_file_id)
-            await message.answer_photo(
-                photo=photo,
-                caption=caption,
-                parse_mode="Markdown",
-            )
+
+            if photo is not None:
+                await message.answer_photo(
+                    photo=photo,
+                    caption=caption,
+                    parse_mode="Markdown",
+                )
+            else:
+                await message.answer_photo(
+                    photo=avatar_file_id,
+                    caption=caption,
+                    parse_mode="Markdown",
+                )
 
         elif avatar_file_id:
             await message.answer_photo(
