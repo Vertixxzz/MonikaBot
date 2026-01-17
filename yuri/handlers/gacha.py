@@ -139,8 +139,19 @@ async def send_card_by_user_id(
     try:
         if avatar_file_id and state == "LEGACY":
             photo = await get_legacy_avatar(message.bot, avatar_file_id)
+
+            if photo is not None:
+                sent = await message.answer_photo(
+                    photo=photo,
+                    caption=caption,
+                    parse_mode="HTML",
+                    reply_markup=reply_markup,
+                )
+                return sent
+
+            # fallback: не смогли сделать legacy PNG -> отправим обычную аватарку
             sent = await message.answer_photo(
-                photo=photo,
+                photo=avatar_file_id,
                 caption=caption,
                 parse_mode="HTML",
                 reply_markup=reply_markup,
@@ -175,7 +186,7 @@ async def send_card_by_user_id(
 async def safe_answer_cb(query: types.CallbackQuery, text: str = "", show_alert: bool = False):
     try:
         await query.answer(text, show_alert=show_alert)
-    except TelegramBadRequest:
+    except (TelegramBadRequest, TelegramForbiddenError, TelegramNetworkError):
         pass
     except Exception:
         logger.exception("CallbackQuery.answer failed")

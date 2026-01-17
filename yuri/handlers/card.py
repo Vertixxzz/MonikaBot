@@ -1,10 +1,12 @@
-import logging
-from aiogram import Router, types, F
-from io import BytesIO
-from PIL import Image
-from aiogram.types import BufferedInputFile
+from __future__ import annotations
 
-from common.db.utilities import get_user_id_by_username
+import logging
+from io import BytesIO
+
+from PIL import Image
+from aiogram import Bot
+from aiogram.types import BufferedInputFile
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramNetworkError
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -12,30 +14,45 @@ router = Router()
 
 # ---------- utils ----------
 
-async def get_user_avatar_file_id(bot, user_id: int) -> str | None:
-    photos = await bot.get_user_profile_photos(user_id, limit=1)
-    if photos.total_count == 0:
+async def get_user_avatar_file_id(bot: Bot, user_id: int) -> str | None:
+    try:
+        photos = await bot.get_user_profile_photos(user_id, limit=1)
+        if not photos.total_count:
+            return None
+        return photos.photos[0][-1].file_id
+    except (TelegramBadRequest, TelegramForbiddenError) as e:
+        logger.warning("Cannot fetch avatar for user_id=%s: %r", user_id, e)
         return None
-    return photos.photos[0][-1].file_id
+    except TelegramNetworkError as e:
+        logger.warning("Network error while fetching avatar for user_id=%s: %r", user_id, e)
+        return None
+    except Exception:
+        logger.exception("Unexpected error while fetching avatar for user_id=%s", user_id)
+        return None
 
 
-async def get_legacy_avatar(bot, file_id: str) -> BufferedInputFile:
-    file = await bot.get_file(file_id)
+async def get_legacy_avatar(bot: Bot, file_id: str) -> BufferedInputFile | None:
+    try:
+        file = await bot.get_file(file_id)
 
-    buffer = BytesIO()
-    await bot.download_file(file.file_path, buffer)
-    buffer.seek(0)
+        buffer = BytesIO()
+        await bot.download_file(file.file_path, buffer)
+        buffer.seek(0)
 
-    img = Image.open(buffer).convert("L")  # grayscale
+        img = Image.open(buffer).convert("L")  # grayscale
 
-    output = BytesIO()
-    img.save(output, format="PNG")
-    output.seek(0)
+        output = BytesIO()
+        img.save(output, format="PNG")
+        output.seek(0)
 
-    return BufferedInputFile(
-        output.read(),
-        filename="legacy.png"
-    )
+        return BufferedInputFile(output.read(), filename="legacy.png")
+
+    except (TelegramBadRequest, TelegramForbiddenError, TelegramNetworkError) as e:
+        logger.warning("Cannot build legacy avatar for file_id=%s: %r", file_id, e)
+        return None
+    except Exception:
+        logger.exception("Unexpected error while building legacy avatar for file_id=%s", file_id)
+        return None
 
 
 
