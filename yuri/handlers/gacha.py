@@ -6,6 +6,8 @@ import html
 from aiogram import Router, types, F
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from common.db.gacha_menus import upsert_gacha_menu, get_gacha_menu_owner, claim_gacha_menu_roll
+from aiogram.exceptions import TelegramBadRequest
 
 from common.db.gacha import roll_once, ROLL_COST_DEFAULT
 from common.db.utilities import get_usernames_by_ids
@@ -170,6 +172,14 @@ async def send_card_by_user_id(
         )
         return sent
 
+async def safe_answer_cb(query: types.CallbackQuery, text: str = "", show_alert: bool = False):
+    try:
+        await query.answer(text, show_alert=show_alert)
+    except TelegramBadRequest:
+        pass
+    except Exception:
+        logger.exception("CallbackQuery.answer failed")
+
 
 @router.message(F.text.func(lambda t: t and t.lower().strip() == "юри крутка"))
 async def yuri_gacha_menu(message: types.Message, pool):
@@ -190,22 +200,19 @@ async def yuri_gacha_menu(message: types.Message, pool):
 @router.callback_query(F.data == GACHA_ROLL_CB)
 async def yuri_gacha_roll_callback(query: types.CallbackQuery, pool):
     if not query.message:
-        await query.answer("Нет сообщения у callback", show_alert=True)
+        await safe_answer_cb(query, "Нет сообщения у callback", show_alert=True)
         return
+
+    await safe_answer_cb(query)
 
     message = query.message
     chat_id = message.chat.id
     msg_id = message.message_id
 
-    owner_id = await get_gacha_menu_owner(
-        pool=pool,
-        chat_id=chat_id,
-        message_id=msg_id,
-        ttl_minutes=GACHA_MENU_TTL_MINUTES,
-    )
+    owner_id = await get_gacha_menu_owner(pool, chat_id, msg_id, GACHA_MENU_TTL_MINUTES)
 
     if owner_id is None:
-        await query.answer("Прошлое меню устарело - я отправлю новое", show_alert=True)
+        await safe_answer_cb(query, "Прошлое меню устарело - я отправлю новое", show_alert=True)
         sent = await message.answer(
             f"Карточка стоит <code>{ROLL_COST_DEFAULT}</code>.\nХочешь покрутить?..",
             parse_mode="HTML",
@@ -215,10 +222,19 @@ async def yuri_gacha_roll_callback(query: types.CallbackQuery, pool):
         return
 
     if query.from_user.id != int(owner_id):
-        await query.answer("Эта кнопка не для тебя!", show_alert=True)
+        await safe_answer_cb(query, "Эта кнопка не для тебя!", show_alert=True)
         return
 
-    await query.answer()
+    claimed = await claim_gacha_menu_roll(
+        pool=pool,
+        chat_id=chat_id,
+        message_id=msg_id,
+        owner_id=int(owner_id),
+        ttl_minutes=GACHA_MENU_TTL_MINUTES,
+    )
+    if not claimed:
+        await safe_answer_cb(query, "Уже обработано", show_alert=False)
+        return
 
     try:
         await message.edit_reply_markup(reply_markup=None)

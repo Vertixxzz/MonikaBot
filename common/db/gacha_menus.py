@@ -1,23 +1,20 @@
 from __future__ import annotations
 import asyncpg
 
-async def upsert_gacha_menu(
-    pool: asyncpg.Pool,
-    chat_id: int,
-    message_id: int,
-    owner_id: int,
-) -> None:
+async def upsert_gacha_menu(pool: asyncpg.Pool, chat_id: int, message_id: int, owner_id: int) -> None:
     async with pool.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO yuri_gacha_menus(chat_id, message_id, owner_id)
-            VALUES ($1, $2, $3)
+            INSERT INTO yuri_gacha_menus(chat_id, message_id, owner_id, used_at)
+            VALUES ($1, $2, $3, NULL)
             ON CONFLICT (chat_id, message_id) DO UPDATE
             SET owner_id = EXCLUDED.owner_id,
-                created_at = NOW()
+                created_at = NOW(),
+                used_at = NULL
             """,
             chat_id, message_id, owner_id
         )
+
 
 async def get_gacha_menu_owner(
     pool: asyncpg.Pool,
@@ -50,8 +47,34 @@ async def cleanup_gacha_menus(
             """,
             keep_days
         )
-    # asyncpg возвращает строку вида "DELETE 123"
     try:
         return int(res.split()[-1])
     except Exception:
         return 0
+
+async def claim_gacha_menu_roll(
+    pool: asyncpg.Pool,
+    chat_id: int,
+    message_id: int,
+    owner_id: int,
+    ttl_minutes: int = 20,
+) -> bool:
+    """
+    True -> этот клик первый и меню успешно "захвачено" для крутки
+    False -> меню устарело/не твоё/уже обработано (дубль update)
+    """
+    async with pool.acquire() as conn:
+        used = await conn.fetchval(
+            """
+            UPDATE yuri_gacha_menus
+               SET used_at = NOW()
+             WHERE chat_id = $1
+               AND message_id = $2
+               AND owner_id = $3
+               AND created_at > NOW() - ($4::int * INTERVAL '1 minute')
+               AND used_at IS NULL
+             RETURNING used_at
+            """,
+            chat_id, message_id, owner_id, ttl_minutes
+        )
+    return used is not None
