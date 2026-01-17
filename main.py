@@ -253,7 +253,6 @@ def build_app() -> FastAPI:
                 await log_webhook_info("monika", monika_bot)
                 await log_webhook_info("sayori", sayori_bot)
                 await log_webhook_info("yuri", yuri_bot)
-
                 return
             except Exception as e:
                 delay = schedule[attempt] if attempt < len(schedule) else 30
@@ -318,7 +317,16 @@ def build_app() -> FastAPI:
         await close_db()
         logger.info("All bots stopped (webhook)")
 
-    async def _handle(request: Request, which: str):
+    def _spawn_update_task(dp: Dispatcher, bot: Bot, update: Update, which: str) -> None:
+        async def _runner():
+            try:
+                await dp.feed_update(bot, update)  # type: ignore[arg-type]
+            except Exception:
+                logger.exception("Failed to process update (%s)", which)
+
+        asyncio.create_task(_runner())
+
+    async def _handle(request: Request, which: str) -> dict[str, Any]:
         secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
 
         if which == "monika":
@@ -337,11 +345,11 @@ def build_app() -> FastAPI:
             bot = holder["yuri_bot"]
             dp = holder["yuri_dp"]
 
-        update = Update.model_validate(await request.json())
+        data = await request.json()
+        update = Update.model_validate(data)
 
+        _spawn_update_task(dp, bot, update, which)  # type: ignore[arg-type]
 
-
-        await dp.feed_update(bot, update)  # type: ignore[arg-type]
         return {"ok": True}
 
     @app.post(path_monika)
@@ -361,7 +369,6 @@ def build_app() -> FastAPI:
         return {"ok": True, "bots": ["monika", "sayori", "yuri"]}
 
     return app
-
 
 # ================= MAIN =================
 if __name__ == "__main__":
