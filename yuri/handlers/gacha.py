@@ -79,8 +79,10 @@ async def send_card_by_user_id(
     header: str,
     top_html: str = "",
     pity_html: str = "",
+    balance_html: str = "",
     reply_markup: InlineKeyboardMarkup | None = None,
 ) -> types.Message | None:
+
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
@@ -119,14 +121,15 @@ async def send_card_by_user_id(
         footer = ""
 
     caption = (
-        f"<b>{_esc(header)}</b>\n"
-        + (f"{top_html}\n\n" if top_html else "\n")
-        + f"Редкость: <b>{_esc(rarity_text)}</b>\n"
-        + f"Сообщений учтено: <code>{messages_total}</code>\n"
-        + f"Активнее, чем ~<code>{100 - percentile:.1f}%</code> участников этого чата\n\n"
-        + (f"{pity_html}\n\n" if pity_html else "")
-        + f"<i>Последнее обновление: {calculated_at:%d.%m.%Y}</i>"
-        + f"{footer}"
+            f"<b>{_esc(header)}</b>\n"
+            + (f"{top_html}\n\n" if top_html else "\n")
+            + f"Редкость: <b>{_esc(rarity_text)}</b>\n"
+            + f"Сообщений учтено: <code>{messages_total}</code>\n"
+            + f"Активнее, чем ~<code>{100 - percentile:.1f}%</code> участников этого чата\n\n"
+            + (f"{pity_html}\n\n" if pity_html else "")
+            + (f"{balance_html}\n\n" if balance_html else "")
+            + f"<i>Последнее обновление: {calculated_at:%d.%m.%Y}</i>"
+            + f"{footer}"
     )
 
     avatar_file_id = await get_user_avatar_file_id(message.bot, target_user_id)
@@ -257,6 +260,7 @@ async def yuri_gacha_roll_callback(query: types.CallbackQuery, pool):
             reply_markup=gacha_roll_keyboard(),
         )
         return
+    balance_html = f"Твой баланс: <code>{result.balance_after}</code>"
 
     dropped_user_id = int(result.dropped_user_id)
 
@@ -283,6 +287,7 @@ async def yuri_gacha_roll_callback(query: types.CallbackQuery, pool):
         top_html=top_html,
         pity_html=pity_html,
         reply_markup=gacha_roll_keyboard(),
+        balance_html=balance_html
     )
 
     if sent_card:

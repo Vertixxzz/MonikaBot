@@ -45,6 +45,8 @@ class RollResult:
     copies: int = 0
     since_epic: int = 0
     since_legendary: int = 0
+    balance_after: int = 0
+
 
 
 
@@ -220,30 +222,40 @@ async def roll_once(pool: Pool, chat_id: int, user_id: int, username: str, cost:
         async with conn.transaction():
             balance = await _ensure_wallet_row_locked(conn, user_id, username)
             if balance < cost:
-                return RollResult(ok=False, reason="NOT_ENOUGH_BALANCE", spent=0)
+                return RollResult(ok=False, reason="NOT_ENOUGH_BALANCE", spent=0, balance_after=int(balance))
 
             since_epic, since_legendary = await _ensure_gacha_state_locked(conn, chat_id, user_id)
 
-            await conn.execute(
+            balance_after = await conn.fetchval(
                 """
                 UPDATE wallets
                 SET balance = balance - $2,
                     username = $3,
                     updated_at = now()
                 WHERE user_id = $1
+                RETURNING balance
                 """,
                 user_id, cost, username,
             )
+            balance_after = int(balance_after or 0)
 
             target_rarity = _roll_rarity_with_pity(since_epic, since_legendary)
             dropped_user_id = await _pick_card_user_id(conn, chat_id, target_rarity)
 
             if dropped_user_id is None:
-                await conn.execute(
-                    "UPDATE wallets SET balance = balance + $2, updated_at = now() WHERE user_id = $1",
+                balance_after = await conn.fetchval(
+                    """
+                    UPDATE wallets
+                    SET balance = balance + $2,
+                        updated_at = now()
+                    WHERE user_id = $1
+                    RETURNING balance
+                    """,
                     user_id, cost,
                 )
-                return RollResult(ok=False, reason="POOL_EMPTY", spent=0)
+                balance_after = int(balance_after or 0)
+
+                return RollResult(ok=False, reason="POOL_EMPTY", spent=0, balance_after=balance_after)
 
             dropped_rarity = await conn.fetchval(
                 "SELECT rarity FROM user_cards WHERE chat_id = $1 AND user_id = $2",
@@ -263,6 +275,7 @@ async def roll_once(pool: Pool, chat_id: int, user_id: int, username: str, cost:
                 copies=copies,
                 since_epic=since_epic_now,
                 since_legendary=since_legendary_now,
+                balance_after=balance_after,
             )
 
 
