@@ -9,7 +9,7 @@ router = Router()
 
 CODE_TO_BOT = {
     "мон": None,
-    "сай": "sai",
+    "сай": "sayori",
     "юри": "yuri",
 }
 
