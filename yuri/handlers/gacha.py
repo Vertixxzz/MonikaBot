@@ -51,15 +51,21 @@ def _format_user_link(user_id: int, username: str | None) -> str:
     if not username or not username.strip():
         return "Юзер"
 
-    u = username.strip()
-    if u.startswith("@"):
-        u = u[1:].strip()
-
+    u = username.strip().lstrip("@").lower()
     if not u:
         return "Юзер"
 
-    label = u
+    bot_map = {
+        "chatmonikabot": "Моника",
+        "chatyuribot": "Юри",
+        "chatsayoribot": "Сайори",
+        "chatnatsukibot": "Нацуки",
+    }
+
+    label = bot_map.get(u, u)
+
     return f'<a href="https://t.me/{_esc(u)}">{_esc(label)}</a>'
+
 
 
 def _build_roll_top_html(dropped_user_id: int, dropped_username: str | None, copies: int) -> str:
