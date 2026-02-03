@@ -62,7 +62,7 @@ async def stats_contest(message: types.Message, pool):
 
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
-        SELECT username, user_id, messagesfromcontest
+        SELECT username, user_id, messagefromcontest
         FROM user_stats
         WHERE chat_id = $1
         ORDER BY messagefromcontest DESC
