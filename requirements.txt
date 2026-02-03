@@ -6,6 +6,6 @@ aiohttp>=3.9.5,<4.0
 python-dotenv>=1.0.1,<2.0
 vosk
 ffmpeg
-openai
+openai==0.28
 deep_translator
 pillow
