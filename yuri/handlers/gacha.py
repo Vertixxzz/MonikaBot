@@ -1,25 +1,40 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import html
+import time
 
 from aiogram import Router, types, F
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from common.db.gacha_menus import upsert_gacha_menu, get_gacha_menu_owner, claim_gacha_menu_roll
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import (
+    TelegramBadRequest,
+    TelegramRetryAfter,
+    TelegramForbiddenError,
+    TelegramNetworkError,
+)
 
 from common.db.gacha import roll_once, ROLL_COST_DEFAULT
 from common.db.utilities import get_usernames_by_ids
-from common.db.gacha_menus import upsert_gacha_menu, get_gacha_menu_owner  # <--
+from common.db.gacha_menus import upsert_gacha_menu, get_gacha_menu_owner
 from yuri.handlers.card import get_user_avatar_file_id, get_legacy_avatar
 
 logger = logging.getLogger(__name__)
 router = Router()
 
 GACHA_ROLL_CB = "yuri_gacha_roll"
-
 GACHA_MENU_TTL_MINUTES = 20
+
+# когда можно снова жать кнопку (chat_id, user_id) -> unix_time
+FLOOD_UNTIL: dict[tuple[int, int], float] = {}
+
+# если крутка уже прошла, но отправка результата упала по flood,
+# храним данные, чтобы при следующем нажатии просто "дослать", без новой крутки
+PENDING_SEND: dict[tuple[int, int], dict] = {}
+
+# чтобы не обрабатывать двойные клики параллельно
+PROCESSING: set[tuple[int, int]] = set()  # (chat_id, message_id)
 
 
 def gacha_roll_keyboard() -> InlineKeyboardMarkup:
@@ -44,9 +59,7 @@ def _format_user_link(user_id: int, username: str | None) -> str:
         return "Юзер"
 
     label = u
-
     return f'<a href="https://t.me/{_esc(u)}">{_esc(label)}</a>'
-
 
 
 def _build_roll_top_html(dropped_user_id: int, dropped_username: str | None, copies: int) -> str:
@@ -71,6 +84,38 @@ def _build_pity_html(since_epic: int, since_legendary: int) -> str:
             f"Гарант LEGENDARY: <code>{since_legendary}/70</code> (осталось ~<code>{lega_left}</code>)",
         ]
     )
+
+
+async def safe_answer_cb(query: types.CallbackQuery, text: str = "", show_alert: bool = False):
+    try:
+        await query.answer(text, show_alert=show_alert)
+    except (TelegramBadRequest, TelegramForbiddenError, TelegramNetworkError):
+        pass
+    except Exception:
+        logger.exception("CallbackQuery.answer failed")
+
+
+async def show_flood_menu(message: types.Message, seconds_left: int):
+    text = (
+        "Телеграм флуд-контроль\n"
+        f"Попробуй снова через ...<code>{int(seconds_left)}</code> секунд пожалуйста"
+    )
+
+    try:
+        if getattr(message, "photo", None):
+            await message.edit_caption(
+                caption=text,
+                parse_mode="HTML",
+                reply_markup=gacha_roll_keyboard(),
+            )
+        else:
+            await message.edit_text(
+                text=text,
+                parse_mode="HTML",
+                reply_markup=gacha_roll_keyboard(),
+            )
+    except Exception:
+        logger.exception("Failed to show flood menu via edit")
 
 
 async def send_card_by_user_id(
@@ -123,15 +168,15 @@ async def send_card_by_user_id(
         footer = ""
 
     caption = (
-            f"<b>{_esc(header)}</b>\n"
-            + (f"{top_html}\n\n" if top_html else "\n")
-            + f"Редкость: <b>{_esc(rarity_text)}</b>\n"
-            + f"Сообщений учтено: <code>{messages_total}</code>\n"
-            + f"Активнее, чем ~<code>{100 - percentile:.1f}%</code> участников этого чата\n\n"
-            + (f"{pity_html}\n\n" if pity_html else "")
-            + (f"{balance_html}\n\n" if balance_html else "")
-            + f"<i>Последнее обновление: {calculated_at:%d.%m.%Y}</i>"
-            + f"{footer}"
+        f"<b>{_esc(header)}</b>\n"
+        + (f"{top_html}\n\n" if top_html else "\n")
+        + f"Редкость: <b>{_esc(rarity_text)}</b>\n"
+        + f"Сообщений учтено: <code>{messages_total}</code>\n"
+        + f"Активнее, чем ~<code>{100 - percentile:.1f}%</code> участников этого чата\n\n"
+        + (f"{pity_html}\n\n" if pity_html else "")
+        + (f"{balance_html}\n\n" if balance_html else "")
+        + f"<i>Последнее обновление: {calculated_at:%d.%m.%Y}</i>"
+        + f"{footer}"
     )
 
     avatar_file_id = await get_user_avatar_file_id(message.bot, target_user_id)
@@ -183,23 +228,20 @@ async def send_card_by_user_id(
         )
         return sent
 
-async def safe_answer_cb(query: types.CallbackQuery, text: str = "", show_alert: bool = False):
-    try:
-        await query.answer(text, show_alert=show_alert)
-    except (TelegramBadRequest, TelegramForbiddenError, TelegramNetworkError):
-        pass
-    except Exception:
-        logger.exception("CallbackQuery.answer failed")
-
 
 @router.message(F.text.func(lambda t: t and t.lower().strip() == "юри крутка"))
 async def yuri_gacha_menu(message: types.Message, pool):
-    sent = await message.answer(
-        f"Карточка стоит <code>{ROLL_COST_DEFAULT}</code>.\n"
-        "Хочешь покрутить?..",
-        parse_mode="HTML",
-        reply_markup=gacha_roll_keyboard(),
-    )
+    try:
+        sent = await message.answer(
+            f"Карточка стоит <code>{ROLL_COST_DEFAULT}</code>.\n"
+            "Хочешь покрутить?..",
+            parse_mode="HTML",
+            reply_markup=gacha_roll_keyboard(),
+        )
+    except TelegramRetryAfter as e:
+        FLOOD_UNTIL[(message.chat.id, message.from_user.id)] = time.time() + int(e.retry_after)
+        await show_flood_menu(message, int(e.retry_after))
+        return
 
     await upsert_gacha_menu(
         pool=pool,
@@ -207,6 +249,7 @@ async def yuri_gacha_menu(message: types.Message, pool):
         message_id=sent.message_id,
         owner_id=message.from_user.id,
     )
+
 
 @router.callback_query(F.data == GACHA_ROLL_CB)
 async def yuri_gacha_roll_callback(query: types.CallbackQuery, pool):
@@ -224,106 +267,157 @@ async def yuri_gacha_roll_callback(query: types.CallbackQuery, pool):
 
     if owner_id is None:
         await safe_answer_cb(query, "Прошлое меню устарело - я отправлю новое", show_alert=True)
-        sent = await message.answer(
-            f"Карточка стоит <code>{ROLL_COST_DEFAULT}</code>.\nХочешь покрутить?..",
-            parse_mode="HTML",
-            reply_markup=gacha_roll_keyboard(),
-        )
-        await upsert_gacha_menu(pool, sent.chat.id, sent.message_id, query.from_user.id)
+        try:
+            sent = await message.answer(
+                f"Карточка стоит <code>{ROLL_COST_DEFAULT}</code>.\nХочешь покрутить?..",
+                parse_mode="HTML",
+                reply_markup=gacha_roll_keyboard(),
+            )
+            await upsert_gacha_menu(pool, sent.chat.id, sent.message_id, query.from_user.id)
+        except TelegramRetryAfter as e:
+            # новое сообщение тоже может не отправиться -> редактируем текущее
+            FLOOD_UNTIL[(chat_id, query.from_user.id)] = time.time() + int(e.retry_after)
+            await show_flood_menu(message, int(e.retry_after))
         return
 
     if query.from_user.id != int(owner_id):
         await safe_answer_cb(query, "Эта кнопка не для тебя!", show_alert=True)
         return
 
-    claimed = await claim_gacha_menu_roll(
-        pool=pool,
-        chat_id=chat_id,
-        message_id=msg_id,
-        owner_id=int(owner_id),
-        ttl_minutes=GACHA_MENU_TTL_MINUTES,
-    )
-    if not claimed:
-        await safe_answer_cb(query, "Уже обработано", show_alert=False)
+    lock_key = (chat_id, msg_id)
+    if lock_key in PROCESSING:
+        await safe_answer_cb(query, "Уже обрабатываю…", show_alert=False)
         return
 
+    PROCESSING.add(lock_key)
     try:
-        await message.edit_reply_markup(reply_markup=None)
-    except Exception:
-        pass
+        user_id = query.from_user.id
+        key = (chat_id, user_id)
 
-    user = query.from_user
-    user_id = user.id
-    username = user.username or user.full_name or "unknown"
-
-    result = await roll_once(
-        pool=pool,
-        chat_id=chat_id,
-        user_id=user_id,
-        username=username,
-        cost=ROLL_COST_DEFAULT,
-    )
-
-    if not result.ok:
-        if result.reason == "NOT_ENOUGH_BALANCE":
-            async with pool.acquire() as conn:
-                bal = await conn.fetchval(
-                    "SELECT balance FROM wallets WHERE user_id = $1",
-                    user_id,
-                )
-            bal = int(bal or 0)
-
-            await message.answer(
-                "Не хватает докидолларов\n"
-                f"Нужно: <code>{ROLL_COST_DEFAULT}</code>\n"
-                f"У тебя: <code>{bal}</code>",
-                parse_mode="HTML",
-                reply_markup=gacha_roll_keyboard(),
-            )
+        now = time.time()
+        until = FLOOD_UNTIL.get(key, 0.0)
+        if now < until:
+            left = int(until - now) + 1
+            await safe_answer_cb(query, f"Подожди {left} сек", show_alert=True)
+            await show_flood_menu(message, left)
             return
 
-        await message.answer(
-            "Пул карточек пустой",
-            reply_markup=gacha_roll_keyboard(),
-        )
-        return
-    balance_html = f"Твой баланс: <code>{result.balance_after}</code>"
+        pending = PENDING_SEND.get(key)
+        if pending:
+            try:
+                sent_card = await send_card_by_user_id(
+                    message=message,
+                    pool=pool,
+                    chat_id=chat_id,
+                    target_user_id=pending["dropped_user_id"],
+                    header=pending["header"],
+                    top_html=pending["top_html"],
+                    pity_html=pending["pity_html"],
+                    balance_html=pending["balance_html"],
+                    reply_markup=gacha_roll_keyboard(),
+                )
+                if sent_card:
+                    PENDING_SEND.pop(key, None)
+                    await upsert_gacha_menu(pool, sent_card.chat.id, sent_card.message_id, user_id)
+                return
+            except TelegramRetryAfter as e:
+                FLOOD_UNTIL[key] = time.time() + int(e.retry_after)
+                await show_flood_menu(message, int(e.retry_after))
+                return
 
-    dropped_user_id = int(result.dropped_user_id)
+        try:
+            await message.edit_reply_markup(reply_markup=None)
+        except Exception:
+            pass
 
-    names = await get_usernames_by_ids(pool, [dropped_user_id])
-    dropped_username = names.get(dropped_user_id)
+        username = query.from_user.username or query.from_user.full_name or "unknown"
 
-    top_html = _build_roll_top_html(
-        dropped_user_id=dropped_user_id,
-        dropped_username=dropped_username,
-        copies=int(getattr(result, "copies", 0) or 0),
-    )
-
-    pity_html = _build_pity_html(
-        since_epic=int(getattr(result, "since_epic", 0) or 0),
-        since_legendary=int(getattr(result, "since_legendary", 0) or 0),
-    )
-
-    sent_card = await send_card_by_user_id(
-        message=message,
-        pool=pool,
-        chat_id=chat_id,
-        target_user_id=dropped_user_id,
-        header="Твоя крутка",
-        top_html=top_html,
-        pity_html=pity_html,
-        reply_markup=gacha_roll_keyboard(),
-        balance_html=balance_html
-    )
-
-    if sent_card:
-        await upsert_gacha_menu(
+        result = await roll_once(
             pool=pool,
-            chat_id=sent_card.chat.id,
-            message_id=sent_card.message_id,
-            owner_id=query.from_user.id,
+            chat_id=chat_id,
+            user_id=user_id,
+            username=username,
+            cost=ROLL_COST_DEFAULT,
         )
+
+        if not result.ok:
+            if result.reason == "NOT_ENOUGH_BALANCE":
+                async with pool.acquire() as conn:
+                    bal = await conn.fetchval(
+                        "SELECT balance FROM wallets WHERE user_id = $1",
+                        user_id,
+                    )
+                bal = int(bal or 0)
+
+                try:
+                    await message.answer(
+                        "Не хватает докидолларов\n"
+                        f"Нужно: <code>{ROLL_COST_DEFAULT}</code>\n"
+                        f"У тебя: <code>{bal}</code>",
+                        parse_mode="HTML",
+                        reply_markup=gacha_roll_keyboard(),
+                    )
+                except TelegramRetryAfter as e:
+                    FLOOD_UNTIL[key] = time.time() + int(e.retry_after)
+                    await show_flood_menu(message, int(e.retry_after))
+                return
+
+            try:
+                await message.answer("Пул карточек пустой", reply_markup=gacha_roll_keyboard())
+            except TelegramRetryAfter as e:
+                FLOOD_UNTIL[key] = time.time() + int(e.retry_after)
+                await show_flood_menu(message, int(e.retry_after))
+            return
+
+        balance_html = f"Твой баланс: <code>{result.balance_after}</code>"
+        dropped_user_id = int(result.dropped_user_id)
+
+        names = await get_usernames_by_ids(pool, [dropped_user_id])
+        dropped_username = names.get(dropped_user_id)
+
+        top_html = _build_roll_top_html(
+            dropped_user_id=dropped_user_id,
+            dropped_username=dropped_username,
+            copies=int(getattr(result, "copies", 0) or 0),
+        )
+
+        pity_html = _build_pity_html(
+            since_epic=int(getattr(result, "since_epic", 0) or 0),
+            since_legendary=int(getattr(result, "since_legendary", 0) or 0),
+        )
+
+        try:
+            sent_card = await send_card_by_user_id(
+                message=message,
+                pool=pool,
+                chat_id=chat_id,
+                target_user_id=dropped_user_id,
+                header="Твоя крутка",
+                top_html=top_html,
+                pity_html=pity_html,
+                balance_html=balance_html,
+                reply_markup=gacha_roll_keyboard(),
+            )
+
+            if sent_card:
+                await upsert_gacha_menu(pool, sent_card.chat.id, sent_card.message_id, user_id)
+
+        except TelegramRetryAfter as e:
+            wait = int(e.retry_after)
+            FLOOD_UNTIL[key] = time.time() + wait
+            PENDING_SEND[key] = {
+                "dropped_user_id": dropped_user_id,
+                "header": "Твоя крутка",
+                "top_html": top_html,
+                "pity_html": pity_html,
+                "balance_html": balance_html,
+            }
+            await show_flood_menu(message, wait)
+            return
+
+    finally:
+        PROCESSING.discard(lock_key)
+
 
 
 
