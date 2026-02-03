@@ -56,4 +56,28 @@ async def stats_all(message: types.Message, pool):
     text += f"\n\nВсего — {total_all} соо"
     await message.reply(text)
 
+@router.message(F.text.lower() == "стата конкурс")
+async def stats_contest(message: types.Message, pool):
+    chat_id = message.chat.id
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+        SELECT username, user_id, messagesfromcontest
+        FROM user_stats
+        WHERE chat_id = $1
+        ORDER BY messagefromcontest DESC
+        LIMIT 20
+        """, chat_id)
+
+    if not rows:
+        await message.reply("Пока что нет статистики.")
+        return
+
+    total_all = sum(r["messagefromcontest"] for r in rows)
+    text = "\n".join(
+        f"{i+1}. {r['username'] or 'Безымянный'} — {r['messagefromcontest']} соо"
+        for i, r in enumerate(rows)
+    )
+    text += f"\n\nВсего — {total_all} соо с начала конкурса"
+    await message.reply(text)
 

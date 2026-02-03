@@ -31,9 +31,10 @@ class MessageStatsMiddleware(BaseMiddleware):
                     messages_today,
                     messages_total,
                     last_message_date,
-                    ispresent
+                    ispresent,
+                    messagefromcontest
                 )
-                VALUES ($1, $2, $3, 1, 1, CURRENT_DATE, TRUE)
+                VALUES ($1, $2, $3, 1, 1, CURRENT_DATE, TRUE, 1)
                 ON CONFLICT (user_id, chat_id)
                 DO UPDATE SET
                     messages_total = user_stats.messages_total + 1,
@@ -42,6 +43,7 @@ class MessageStatsMiddleware(BaseMiddleware):
                             THEN user_stats.messages_today + 1
                         ELSE 1
                     END,
+                    messagefromcontest = user_stats.messagefromcontest + 1,
                     last_message_date = CURRENT_DATE,
                     username = EXCLUDED.username,
                     ispresent = TRUE
