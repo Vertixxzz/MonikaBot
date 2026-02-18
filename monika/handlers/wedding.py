@@ -10,6 +10,8 @@ from common.db.weddings import (
     db_get_pending_proposal,
     db_create_proposal,
     db_accept_proposal,
+    db_divorce_by_user,
+
 )
 
 router = Router()
@@ -126,5 +128,26 @@ async def marriage_info(message: Message, pool):
         f"Ты женат(а) с: `{partner_id}`\n"
         f"Дата свадьбы: `{created_at}`\n"
         f"Прошло дней: *{days}*",
+        parse_mode="Markdown",
+    )
+
+@router.message(F.text.func(lambda t: t and t.strip().lower() == "брак развод"))
+async def marriage_divorce(message: Message, pool):
+    user = message.from_user
+    if not user:
+        return
+
+    divorced = await db_divorce_by_user(pool, user.id)
+    if not divorced:
+        await message.answer("Ты не в браке. Разводиться не с кем 👀")
+        return
+
+    partner_id = divorced["partner_id"]
+    days = divorced["days"]
+
+    await message.answer(
+        "*Развод оформлен=(*\n\n"
+        f"Брак с `{partner_id}` расторгнут.\n"
+        f"Вы были в браке *{days}* дней.",
         parse_mode="Markdown",
     )

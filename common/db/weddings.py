@@ -3,6 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional, Dict, Any
 
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
 async def db_get_marriage_by_user(pool, user_id: int) -> Optional[Dict[str, Any]]:
     sql = """
         SELECT w.user1_id, w.user2_id, w.created_at
@@ -94,3 +97,36 @@ async def db_accept_proposal(pool, partner_id: int, accepted_at: datetime) -> Di
                 "user2_id": int(wedding["user2_id"]),
                 "created_at": wedding["created_at"],
             }
+
+async def db_divorce_by_user(pool, user_id: int):
+    get_wedding = """
+        SELECT w.id AS wedding_id, w.user1_id, w.user2_id, w.created_at
+        FROM wedding_members m
+        JOIN weddings w ON w.id = m.wedding_id
+        WHERE m.user_id = $1
+        LIMIT 1
+        FOR UPDATE
+    """
+
+    delete_wedding = "DELETE FROM weddings WHERE id = $1"
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow(get_wedding, user_id)
+            if not row:
+                return None
+
+            wedding_id = int(row["wedding_id"])
+            u1 = int(row["user1_id"])
+            u2 = int(row["user2_id"])
+            created_at = row["created_at"]
+
+            partner_id = u2 if user_id == u1 else u1
+
+            await conn.execute(delete_wedding, wedding_id)
+
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            days = max(0, (_utcnow() - created_at.astimezone(timezone.utc)).days)
+
+            return {"partner_id": partner_id, "days": days}
