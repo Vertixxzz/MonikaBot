@@ -26,7 +26,7 @@ from .handlers.brutemute import router as anton_router
 from .handlers.openai import router as openai_router
 from .handlers.promo import router as promo_router
 from .handlers.secret import router as secret_router
-from .handler.wedding import router as wedding_router
+from .handlers.wedding import router as wedding_router
 logger = logging.getLogger(__name__)
 
 
