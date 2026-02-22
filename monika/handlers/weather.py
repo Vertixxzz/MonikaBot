@@ -33,6 +33,7 @@ async def handle_weather(message: types.Message):
         return
 
     data = await get_weather(city)
+    print(data)
     if not data:
         await message.reply("Такого города не существует", parse_mode="Markdown")
         return
