@@ -23,11 +23,16 @@ async def get_weather(city: str):
             {"key": WEATHER_API_KEY, "q": city, "lang": "ru"},
         )
 
-        if status != 200:
-            print("WeatherAPI search error:", status, search_data)
-            return None
+        print("SEARCH status:", status)
+        print("SEARCH body type:", type(search_data))
+        print("SEARCH body:", search_data[:3] if isinstance(search_data, list) else search_data)
 
         if not isinstance(search_data, list) or not search_data:
+            print("SEARCH: no results for:", repr(city))
+            return None
+
+        if status != 200:
+            print("WeatherAPI search error:", status, search_data)
             return None
 
         loc = search_data[0]
