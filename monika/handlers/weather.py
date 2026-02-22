@@ -7,23 +7,52 @@ router = Router()
 
 PREFIX = "погода"
 
+
+async def weatherapi_get(session: aiohttp.ClientSession, endpoint: str, params: dict):
+    url = f"https://api.weatherapi.com/v1/{endpoint}"
+    async with session.get(url, params=params) as resp:
+        data = await resp.json(content_type=None)
+        return resp.status, data
+
+
 async def get_weather(city: str):
     async with aiohttp.ClientSession() as session:
-        url = "https://api.weatherapi.com/v1/forecast.json"
-        params = {
-            "key": WEATHER_API_KEY,
-            "q": city,
-            "days": 2,
-            "lang": "ru",
-        }
-        async with session.get(url, params=params) as resp:
-            data = await resp.json(content_type=None)
+        status, search_data = await weatherapi_get(
+            session,
+            "search.json",
+            {"key": WEATHER_API_KEY, "q": city, "lang": "ru"},
+        )
 
-            if resp.status != 200:
-                print("WeatherAPI error:", resp.status, data)
-                return None
+        if status != 200:
+            print("WeatherAPI search error:", status, search_data)
+            return None
 
-            return data
+        if not isinstance(search_data, list) or not search_data:
+            return None
+
+        loc = search_data[0]
+        loc_id = loc.get("id")
+        if not loc_id:
+            print("WeatherAPI search: missing id:", loc)
+            return None
+
+        status, forecast_data = await weatherapi_get(
+            session,
+            "forecast.json",
+            {
+                "key": WEATHER_API_KEY,
+                "q": f"id:{loc_id}",
+                "days": 2,
+                "lang": "ru",
+            },
+        )
+
+        if status != 200:
+            print("WeatherAPI forecast error:", status, forecast_data)
+            return None
+
+        return forecast_data
+
 
 @router.message(lambda msg: msg.text and msg.text.lower().startswith(PREFIX))
 async def handle_weather(message: types.Message):
@@ -36,18 +65,28 @@ async def handle_weather(message: types.Message):
         return
 
     data = await get_weather(city)
+
     if not data:
         await message.reply("Такого города не существует", parse_mode="Markdown")
         return
 
     location = data["location"]["name"]
+    region = data["location"].get("region")
+    country = data["location"].get("country")
+
     current = data["current"]
     forecast = data["forecast"]["forecastday"][1]["day"]
 
     comment = "Капец у вас жарко.." if current["temp_c"] > 25 else ""
 
+    location_line = location
+    if region and region != location:
+        location_line += f", {region}"
+    if country:
+        location_line += f", {country}"
+
     response = (
-        f"Погода в *{location}*\n"
+        f"Погода в *{location_line}*\n"
         f"Сейчас: *{current['temp_c']}°C* (ощущается как *{current['feelslike_c']}°C*)\n"
         f"{current['condition']['text']}\n"
         f"Ветер: {current['wind_kph']} км/ч\n"
