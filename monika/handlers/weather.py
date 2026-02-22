@@ -1,4 +1,5 @@
 import re
+import unicodedata
 import aiohttp
 from aiogram import Router, types
 from common.utils.links import get_bot
@@ -8,100 +9,58 @@ router = Router()
 
 PREFIXES = ("моника погода", "погода")
 
-def normalize_city(raw: str) -> str:
+ZERO_WIDTH = {
+    "\u200b", "\u200c", "\u200d", "\u2060", "\ufeff",
+    "\u200e", "\u200f", "\u202a", "\u202b", "\u202c",
+    "\u202d", "\u202e",
+}
+
+def sanitize_city(raw: str) -> str:
     s = " ".join(raw.split())
+
+    s = "".join(
+        ch for ch in s
+        if ch not in ZERO_WIDTH and unicodedata.category(ch) != "Cf"
+    )
 
     s = s.strip(" \t\n\r,.;:!?\"'()[]{}<>«»`~")
 
     s = re.sub(r"^(город|г\.|city)\s*[:\-]?\s*", "", s, flags=re.IGNORECASE)
 
-    return s
+    s = re.sub(r"[^0-9A-Za-zА-Яа-яЁёІіЇїЄєҐґӨөҚқҢңҮүҰұҺһӘә\s\-,.]", "", s)
 
-def pick_best_location(query: str, locations: list[dict]) -> dict | None:
-    if not locations:
-        return None
+    return s.strip(" ,.-")
 
-    q = query.casefold()
 
-    def score(loc: dict) -> int:
-        name = (loc.get("name") or "").casefold()
-        region = (loc.get("region") or "").casefold()
-        country = (loc.get("country") or "").casefold()
-
-        if name == q:
-            return 100
-        if f"{name}, {country}" == q or f"{name}, {region}" == q:
-            return 95
-
-        if name.startswith(q):
-            return 80
-        if q in name:
-            return 70
-
-        first = q.split()[0] if q.split() else q
-        if first and name == first:
-            return 85
-        if first and name.startswith(first):
-            return 75
-
-        # слабые сигналы
-        if q in f"{name} {region} {country}":
-            return 50
-
-        return 0
-
-    best = max(locations, key=score)
-    return best if score(best) > 0 else locations[0]
-
-async def weatherapi_get(session: aiohttp.ClientSession, path: str, params: dict):
-    url = f"https://api.weatherapi.com/v1/{path}"
-    async with session.get(url, params=params) as resp:
-        data = await resp.json(content_type=None)
-        return resp.status, data
-
-async def resolve_city_to_latlon(session: aiohttp.ClientSession, city: str) -> tuple[float, float] | None:
-    status, data = await weatherapi_get(
-        session,
-        "search.json",
-        {"key": WEATHER_API_KEY, "q": city, "lang": "ru"},
-    )
-    if status != 200:
-        print("WeatherAPI search error:", status, data)
-        return None
-
-    best = pick_best_location(city, data if isinstance(data, list) else [])
-    if not best:
-        return None
-
-    lat = best.get("lat")
-    lon = best.get("lon")
-    if lat is None or lon is None:
-        return None
-
-    return float(lat), float(lon)
-
-async def get_weather_by_city(city: str):
+async def get_weather(city: str):
     async with aiohttp.ClientSession() as session:
-        latlon = await resolve_city_to_latlon(session, city)
-        if not latlon:
-            return None
+        url = "https://api.weatherapi.com/v1/forecast.json"
+        params = {
+            "key": WEATHER_API_KEY,
+            "q": city,
+            "days": 2,
+            "lang": "ru",
+        }
 
-        lat, lon = latlon
-        status, data = await weatherapi_get(
-            session,
-            "forecast.json",
-            {
-                "key": WEATHER_API_KEY,
-                "q": f"{lat},{lon}",
-                "days": 2,
-                "lang": "ru",
-            },
-        )
-        if status != 200:
-            print("WeatherAPI forecast error:", status, data)
-            return None
+        async with session.get(url, params=params) as resp:
+            try:
+                data = await resp.json(content_type=None)
+            except Exception:
+                text = await resp.text()
+                print("WeatherAPI invalid JSON:", resp.status, text)
+                return None
 
-        return data
+            if resp.status != 200:
+                err = data.get("error", {})
+                print("WeatherAPI error:", resp.status, err)
+
+                if err.get("code") == 1006:
+                    return None
+
+                return None
+
+            return data
+
 
 @router.message(lambda msg: msg.text and msg.text.lower().startswith(PREFIXES))
 async def handle_weather(message: types.Message):
@@ -114,40 +73,62 @@ async def handle_weather(message: types.Message):
             city_raw = text[len(p):].strip()
             break
 
-    city = normalize_city(city_raw)
+    city = sanitize_city(city_raw)
+
+    print("RAW city repr:", repr(city))
+    print("RAW codepoints:", [hex(ord(ch)) for ch in city])
 
     if not city:
-        await message.answer("Напиши город: `погода Москва` или `Моника погода Астана`")
+        await message.answer(
+            "Напиши город: `погода Москва` или `Моника погода Астана`",
+            parse_mode="Markdown"
+        )
         return
 
-    data = await get_weather_by_city(city)
+    data = await get_weather(city)
+
     if not data:
         await message.reply("Такого города не существует", parse_mode="Markdown")
         return
 
     location = data["location"]["name"]
+    region = data["location"].get("region")
+    country = data["location"].get("country")
+
     current = data["current"]
     forecast = data["forecast"]["forecastday"][1]["day"]
 
     comment = "Капец у вас жарко.." if current["temp_c"] > 25 else ""
 
+    location_line = f"{location}"
+    if region and region != location:
+        location_line += f", {region}"
+    if country:
+        location_line += f", {country}"
+
     response = (
-        f"Погода в *{location}*\n"
-        f"Сейчас: *{current['temp_c']}°C* (ощущается как *{current['feelslike_c']}°C*)\n"
+        f"Погода в *{location_line}*\n"
+        f"Сейчас: *{current['temp_c']}°C* "
+        f"(ощущается как *{current['feelslike_c']}°C*)\n"
         f"{current['condition']['text']}\n"
         f"Ветер: {current['wind_kph']} км/ч\n"
         f"Влажность: {current['humidity']}%\n\n"
         f"*Прогноз на завтра:*\n"
-        f"Днём: *{forecast['avgtemp_c']}°C*, осадки: *{forecast['daily_chance_of_rain']}%*\n"
+        f"Днём: *{forecast['avgtemp_c']}°C*, "
+        f"осадки: *{forecast['daily_chance_of_rain']}%*\n"
         f"{forecast['condition']['text']}\n"
         f"{comment}"
     )
+
     await message.reply(response, parse_mode="Markdown")
 
     if current["temp_c"] < -5:
         sayori = get_bot("sayori")
         if sayori:
             try:
-                await sayori.send_message(message.chat.id, "ужас как холодно...")
+                await sayori.send_message(
+                    message.chat.id,
+                    "ужас как холодно..."
+                )
             except Exception as e:
                 print("Ошибка при сообщении Сайори:", e)
