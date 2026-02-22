@@ -13,6 +13,7 @@ async def get_weather(city: str):
         )
         async with session.get(url) as resp:
             if resp.status != 200:
+                print(resp.status)
                 return None
             return await resp.json()
 
@@ -33,7 +34,6 @@ async def handle_weather(message: types.Message):
         return
 
     data = await get_weather(city)
-    print(data)
     if not data:
         await message.reply("Такого города не существует", parse_mode="Markdown")
         return
