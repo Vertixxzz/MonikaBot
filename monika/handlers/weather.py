@@ -8,86 +8,29 @@ router = Router()
 PREFIX = "погода"
 
 
-async def weatherapi_get(session: aiohttp.ClientSession, endpoint: str, params: dict):
-    url = f"https://api.weatherapi.com/v1/{endpoint}"
-
-    async with session.get(url, params=params) as resp:
-        print("---- WEATHERAPI CALL ----")
-        print("Endpoint:", endpoint)
-        print("Final URL:", str(resp.url))
-        print("Status:", resp.status)
-        print("Server header:", resp.headers.get("Server"))
-
-        try:
-            data = await resp.json(content_type=None)
-        except Exception:
-            text = await resp.text()
-            print("Invalid JSON response:", text)
-            return resp.status, None
-
-        print("Response body:", data)
-        print("-------------------------\n")
-
-        return resp.status, data
-
-
 async def get_weather(city: str):
+    url = "https://api.weatherapi.com/v1/forecast.json"
+
+    params = {
+        "key": WEATHER_API_KEY,
+        "q": city,
+        "days": 2,
+        "lang": "ru",
+    }
+
     async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params) as resp:
+            data = await resp.json()
 
-        test_status, test_data = await weatherapi_get(
-            session,
-            "forecast.json",
-            {
-                "key": WEATHER_API_KEY,
-                "q": "48.8567,2.3508",
-                "days": 1,
-                "lang": "ru",
-            },
-        )
+            if resp.status != 200:
+                print("WeatherAPI error:", data)
+                return None
 
-        print("COORD TEST RESULT:", test_status)
+            if "error" in data:
+                print("WeatherAPI returned error:", data)
+                return None
 
-        status, search_data = await weatherapi_get(
-            session,
-            "search.json",
-            {
-                "key": WEATHER_API_KEY,
-                "q": city,
-            },
-        )
-
-        if status != 200:
-            print("Search request failed")
-            return None
-
-        if not isinstance(search_data, list) or not search_data:
-            print("Search returned empty list for:", repr(city))
-            return None
-
-        loc = search_data[0]
-        loc_id = loc.get("id")
-
-        if not loc_id:
-            print("Search result missing id:", loc)
-            return None
-
-        # 3) forecast по ID
-        status, forecast_data = await weatherapi_get(
-            session,
-            "forecast.json",
-            {
-                "key": WEATHER_API_KEY,
-                "q": f"id:{loc_id}",
-                "days": 2,
-                "lang": "ru",
-            },
-        )
-
-        if status != 200:
-            print("Forecast by ID failed")
-            return None
-
-        return forecast_data
+            return data
 
 
 @router.message(lambda msg: msg.text and msg.text.lower().startswith(PREFIX))
