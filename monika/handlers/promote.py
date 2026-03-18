@@ -4,7 +4,7 @@ import re
 import asyncio
 from aiogram import Router, F
 from aiogram.types import Message
-import HTML
+import html
 
 from common.db.admin import (
     get_bot_level,
