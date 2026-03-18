@@ -51,7 +51,7 @@ def tg_human_error(e: TelegramBadRequest) -> str:
 
 async def deny_if_self(message: Message, target_id: int, action_word: str) -> bool:
     if target_id == message.bot.id:
-        await message.answer(f"Эй! {action_word} меня — ужасный выбор!")
+        await message.answer(f"Эй! {action_word} меня - ужасный выбор!")
         return True
     return False
 

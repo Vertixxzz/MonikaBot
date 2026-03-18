@@ -4,6 +4,7 @@ import re
 import asyncio
 from aiogram import Router, F
 from aiogram.types import Message
+import HTML
 
 from common.db.admin import (
     get_bot_level,
@@ -33,10 +34,13 @@ _SIGNED_INT = re.compile(r"^[+-]?\d+$")                  # -1, +2, 3
 def level_title(level: int) -> str:
     return LEVEL_TITLE.get(level, f"Уровень {level}")
 
-def format_user(user_id: int, username: str | None) -> str:
+def format_user(user_id, username):
     if username:
-        return f"@{username.lstrip('@')}"
-    return f"<code>{user_id}</code>"
+        name = f"@{username}"
+    else:
+        name = str(user_id)
+
+    return f'<a href="tg://user?id={user_id}">{html.escape(name)}</a>'
 
 def parse_first_int(text: str, default: int = 1) -> int | None:
     parts = (text or "").split()

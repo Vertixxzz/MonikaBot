@@ -2,17 +2,21 @@ from aiogram import Router
 from aiogram.types import Message
 
 import re
+import html
 
 router = Router()
 
 # ===================== CACHE =====================
 
-# {chat_id: {trigger: (order, action)}}. да. это так же страшно понимать, как и читать
+# {chat_id: {trigger: (order, action)}} это так же страшно понимать, как и читать
 RP_COMMANDS: dict[int, dict[str, tuple[str, str]]] = {}
 
 MAX_COMMANDS_PER_CHAT = 100
 MIN_TRIGGER_LEN = 2
 MAX_ACTION_LEN = 50
+
+CREATE_REGEX = r'^сайори создать\s+"(.+?)"\s+"(12|21)"\s+"(.+?)"$'
+
 
 # ===================== LOAD =====================
 
@@ -35,25 +39,58 @@ async def load_rp_commands(pool):
 
 # ===================== HELPERS =====================
 
-def get_target(message: Message):
-    if not message.reply_to_message:
-        return None
-    return message.reply_to_message.from_user
+def mention(user_id: int, username: str):
+    return f'<a href="tg://user?id={user_id}">@{html.escape(username)}</a>'
 
 
-def render(order: str, action: str, sender, target):
+async def is_admin(message: Message) -> bool:
+    member = await message.bot.get_chat_member(
+        message.chat.id,
+        message.from_user.id
+    )
+    return member.status in ("administrator", "creator")
+
+
+async def resolve_target(message: Message, pool):
+    # 1. reply
+    if message.reply_to_message:
+        u = message.reply_to_message.from_user
+
+        if not u or not u.username:
+            await message.answer("У пользователя нет username.")
+            return None
+
+        return u.id, u.username
+
+    # 2. @username
+    parts = message.text.split()
+
+    if len(parts) >= 2:
+        username = parts[1].lstrip("@").lower()
+
+        from common.db.utilities import get_user_id_by_username
+
+        user_id = await get_user_id_by_username(pool, username)
+        if not user_id:
+            await message.answer("Пользователь не найден.")
+            return None
+
+        return user_id, username
+
+    return None
+
+
+def render(order: str, action: str, sender, target_id, target_username):
+    m_sender = mention(sender.id, sender.username or sender.first_name)
+    m_target = mention(target_id, target_username)
+
     if order == "12":
-        return f"{sender.full_name} {action} {target.full_name}"
-    elif order == "21":
-        return f"{target.full_name} {action} {sender.full_name}"
+        return f"{m_sender} {action} {m_target}"
     else:
-        return "ошибка порядка"
+        return f"{m_target} {action} {m_sender}"
 
 
 # ===================== CREATE =====================
-
-CREATE_REGEX = r'^сайори создать\s+"(.+?)"\s+"(12|21)"\s+"(.+?)"$'
-
 
 @router.message(lambda msg: msg.text and msg.text.lower().startswith("сайори создать"))
 async def create_rp(message: Message, pool):
@@ -80,6 +117,10 @@ async def create_rp(message: Message, pool):
         await message.answer("Слишком короткий триггер.")
         return
 
+    if len(action) > MAX_ACTION_LEN:
+        await message.answer(f"Слишком длинное действие (макс {MAX_ACTION_LEN}).")
+        return
+
     RP_COMMANDS.setdefault(chat_id, {})
 
     if trigger in RP_COMMANDS[chat_id]:
@@ -88,10 +129,6 @@ async def create_rp(message: Message, pool):
 
     if len(RP_COMMANDS[chat_id]) >= MAX_COMMANDS_PER_CHAT:
         await message.answer("Слишком много команд в чате.")
-        return
-
-    if len(action) > MAX_ACTION_LEN:
-        await message.answer("Слишком длинное действие.")
         return
 
     # --- запись ---
@@ -107,7 +144,7 @@ async def create_rp(message: Message, pool):
         message.from_user.id,
     )
 
-    # --- обновление кэша ---
+    # --- кэш ---
     RP_COMMANDS[chat_id][trigger] = (order, action)
 
     await message.answer(f"Команда '{trigger}' создана.")
@@ -153,15 +190,17 @@ async def list_rp(message: Message):
 
     cmds = list(RP_COMMANDS[chat_id].keys())
 
-    await message.answer(
-        "RP команды:\n" + "\n".join(cmds[:30])
-    )
+    await message.answer("RP команды:\n" + "\n".join(cmds[:30]))
 
 
-# ===================== RELOAD =====================
+# ===================== RELOAD (ADMIN ONLY) =====================
 
 @router.message(lambda msg: msg.text == "сайори загрузи команды")
 async def reload_rp(message: Message, pool):
+    if not await is_admin(message):
+        await message.answer("Только администраторы могут перезагружать команды.")
+        return
+
     await load_rp_commands(pool)
     await message.answer("Команды перезагружены.")
 
@@ -172,21 +211,26 @@ async def reload_rp(message: Message, pool):
     lambda msg: (
         msg.text
         and msg.chat.id in RP_COMMANDS
-        and msg.text.lower().strip() in RP_COMMANDS[msg.chat.id]
+        and msg.text.split()[0].lower() in RP_COMMANDS[msg.chat.id]
     )
 )
-async def rp_handler(message: Message):
+async def rp_handler(message: Message, pool):
+    parts = message.text.split()
+    cmd = parts[0].lower()
     chat_id = message.chat.id
-    cmd = message.text.lower().strip()
-
-    target = get_target(message)
-    if not target:
-        return
 
     sender = message.from_user
+    if not sender:
+        return
+
+    target_data = await resolve_target(message, pool)
+    if not target_data:
+        return
+
+    target_id, target_username = target_data
 
     order, action = RP_COMMANDS[chat_id][cmd]
 
-    text = render(order, action, sender, target)
+    text = render(order, action, sender, target_id, target_username)
 
-    await message.answer(text)
+    await message.answer(text, parse_mode="HTML")
