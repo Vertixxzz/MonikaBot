@@ -1,20 +1,14 @@
 from __future__ import annotations
 
 async def get_user_id_by_username(pool, username: str) -> int | None:
-    q = username.lstrip("@")
+    q = username.lstrip("@").lower()
 
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             SELECT user_id
             FROM user_stats
-            WHERE username = $1
-               OR username ILIKE $1 || '%'
-               OR username ILIKE '%' || $1 || '%'
-            ORDER BY
-              (username = $1) DESC,
-              (username ILIKE $1 || '%') DESC,
-              last_message_date DESC
+            WHERE LOWER(username) = $1
             LIMIT 1
             """,
             q,

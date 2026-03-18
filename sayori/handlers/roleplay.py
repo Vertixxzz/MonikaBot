@@ -1,275 +1,192 @@
-from aiogram import Router, F
+from aiogram import Router
 from aiogram.types import Message
-from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
-from common.utils.links import get_bot_in_chat, BotNotFoundError
-from cfg import NONRP, NON18RP, ADMIN_LIST
-import asyncio
-import random
+
+import re
 
 router = Router()
 
-async def isrpable(message: Message, target, sender) -> bool:
-    if target.id in NONRP or sender.id in NONRP:
-        await message.reply("Этот человек не хочет, чтобы с ним выполняли ролевые действия.")
-        return False
-    return True
+# ===================== CACHE =====================
+
+# {chat_id: {trigger: (order, action)}}. да. это так же страшно понимать, как и читать
+RP_COMMANDS: dict[int, dict[str, tuple[str, str]]] = {}
+
+MAX_COMMANDS_PER_CHAT = 100
+MIN_TRIGGER_LEN = 2
+MAX_ACTION_LEN = 50
+
+# ===================== LOAD =====================
+
+async def load_rp_commands(pool):
+    rows = await pool.fetch(
+        "SELECT chat_id, trigger, user_order, action FROM rp_commands"
+    )
+
+    RP_COMMANDS.clear()
+
+    for r in rows:
+        chat_id = r["chat_id"]
+        trigger = r["trigger"]
+        order = r["user_order"]
+        action = r["action"]
+
+        RP_COMMANDS.setdefault(chat_id, {})
+        RP_COMMANDS[chat_id][trigger] = (order, action)
 
 
-async def is18rpable(message: Message, target, sender) -> bool:
-    if target.id in NON18RP or sender.id in NON18RP:
-        await message.reply("Этот человек не хочет, чтоб с ним выполняли 18+ ролевые действия.")
-        return False
-    return True
+# ===================== HELPERS =====================
 
-
-# --- RP команды --- #
-@router.message(F.text.lower().in_({"обнял", "обняла", "обнять"}))
-async def rp_hug(message: Message):
+def get_target(message: Message):
     if not message.reply_to_message:
+        return None
+    return message.reply_to_message.from_user
+
+
+def render(order: str, action: str, sender, target):
+    if order == "12":
+        return f"{sender.full_name} {action} {target.full_name}"
+    elif order == "21":
+        return f"{target.full_name} {action} {sender.full_name}"
+    else:
+        return "ошибка порядка"
+
+
+# ===================== CREATE =====================
+
+CREATE_REGEX = r'^сайори создать\s+"(.+?)"\s+"(12|21)"\s+"(.+?)"$'
+
+
+@router.message(lambda msg: msg.text and msg.text.lower().startswith("сайори создать"))
+async def create_rp(message: Message, pool):
+    text = message.text.strip()
+
+    match = re.match(CREATE_REGEX, text, re.IGNORECASE)
+    if not match:
+        await message.answer(
+            'Использование:\n'
+            'сайори создать "триггер" "12|21" "действие"\n\n'
+            'Пример:\n'
+            'сайори создать "обнять" "12" "обнял"'
+        )
         return
 
-    sender = message.from_user
-    target = message.reply_to_message.from_user or message.reply_to_message.sender_chat
-    if not target or not hasattr(target, "id"):
-        return
+    trigger, order, action = match.groups()
 
-    if not await isrpable(message, target, sender):
-        return
-
-    name1 = sender.username or sender.first_name
-    name2 = getattr(target, "username", None) or getattr(target, "first_name", None) or getattr(target, "title", "Безымянный")
+    trigger = trigger.lower().strip()
+    action = action.strip()
     chat_id = message.chat.id
 
-    if name1 == name2:
-        await message.reply("Охх... ты хочешь обнять себя? Давай лучше... я тебя обниму ❤️")
-        await asyncio.sleep(2)
-        await message.answer(f"Я заключила в объятия @{name1}!")
+    # --- валидация ---
+    if len(trigger) < MIN_TRIGGER_LEN:
+        await message.answer("Слишком короткий триггер.")
         return
 
-    if target.id == 7965136625:
-        await message.reply("М... меня? Ты хочешь обнять меня? Я только рада!!")
-        await asyncio.sleep(2)
-        try:
-            monika = await get_bot_in_chat("monika", chat_id)
-            await monika.send_message(chat_id, "*подглядывает*")
-        except BotNotFoundError:
-            pass
-        except Exception:
-            pass
+    RP_COMMANDS.setdefault(chat_id, {})
 
-    elif target.id == 8324502664:
-        try:
-            monika = await get_bot_in_chat("monika", chat_id)
-            await monika.send_message(chat_id, "ну наконец-то моя очередь!")
-            await message.reply("кхехе, Моника так смешно выглядит, когда её кто-то обнимает!")
-        except BotNotFoundError:
-            await message.reply("Моники нет в чате, но представим, что она тоже улыбается~")
-        except Exception as e:
-            print("Ошибка при ответе Моники:", e)
-
-    await message.answer(f"@{name2} заключен(а) в объятиях @{name1}!")
-
-
-@router.message(F.text.lower().in_({"убил", "убила", "убить"}))
-async def rp_kill(message: Message):
-    if not message.reply_to_message:
+    if trigger in RP_COMMANDS[chat_id]:
+        await message.answer("Такая команда уже существует.")
         return
 
-    sender = message.from_user
-    target = message.reply_to_message.from_user or message.reply_to_message.sender_chat
-    if not target or not hasattr(target, "id"):
+    if len(RP_COMMANDS[chat_id]) >= MAX_COMMANDS_PER_CHAT:
+        await message.answer("Слишком много команд в чате.")
         return
 
-    chat_id = message.chat.id
-    name1 = sender.username or sender.first_name
-    name2 = getattr(target, "username", None) or getattr(target, "first_name", None) or getattr(target, "title", "Безымянный")
-
-    if not await isrpable(message, target, sender):
-        return
-    if not await is18rpable(message, target, sender):
+    if len(action) > MAX_ACTION_LEN:
+        await message.answer("Слишком длинное действие.")
         return
 
-    if name1 == name2:
-        await message.reply("Охохо... это косплей на меня? Я очень ценю, но пожалуйста... не делай так.")
-        await message.reply(f"@{name1} остался жив и здоров!")
+    # --- запись ---
+    await pool.execute(
+        """
+        INSERT INTO rp_commands (chat_id, trigger, user_order, action, created_by)
+        VALUES ($1, $2, $3, $4, $5)
+        """,
+        chat_id,
+        trigger,
+        order,
+        action,
+        message.from_user.id,
+    )
+
+    # --- обновление кэша ---
+    RP_COMMANDS[chat_id][trigger] = (order, action)
+
+    await message.answer(f"Команда '{trigger}' создана.")
+
+
+# ===================== DELETE =====================
+
+@router.message(lambda msg: msg.text and msg.text.lower().startswith("сайори удалить"))
+async def delete_rp(message: Message, pool):
+    parts = message.text.split()
+
+    if len(parts) < 3:
+        await message.answer("Использование: сайори удалить <триггер>")
         return
 
-    if target.id == 7965136625:
-        await message.reply("...")
-        await asyncio.sleep(1)
-        await message.answer("ты... серьёзно?..")
-        await asyncio.sleep(1.5)
-        try:
-            monika = await get_bot_in_chat("monika", chat_id)
-            if random.randint(1, 100) > 80:
-                await monika.send_message(chat_id, f"@{name1}... Зачем? Разве тебе не хватило того, что когда-то сделала я?")
-        except BotNotFoundError:
-            pass
-        except Exception as e:
-            print("Ошибка при ответе Моники:", e)
-
-        await asyncio.sleep(2)
-        await message.answer(f"@{name1} убил(а) @{name2}...")
-        return
-
-    if target.id == 8324502664:
-        try:
-            monika = await get_bot_in_chat("monika", chat_id)
-            await monika.ban_chat_member(chat_id, sender.id)
-            await message.reply(f"@{name1} попытался(ась) убить Монику... и теперь исчез навсегда.")
-        except TelegramBadRequest:
-            await monika.send_message(chat_id, f"Было бы у меня достаточно прав... @{name1}")
-        except BotNotFoundError:
-            await message.reply("Ты.. пытаешься убить бота, которого нет в чате? Сильно..")
-        except Exception as e:
-            print(f"Ошибка при обработке убийства Моники: {e}")
-        return
-
-    phrases = [
-        f"@{name1} хладнокровно убил(а) @{name2}.",
-        f"@{name2} не успел(а) даже вскрикнуть — @{name1} оказался(ась) быстрее.",
-        f"Кровь, крик и... тишина. @{name1} убил(а) @{name2}.",
-    ]
-    await message.answer(random.choice(phrases))
-
-    try:
-        monika = await get_bot_in_chat("monika", chat_id)
-        if random.randint(0, 100) > 80:
-            await monika.send_message(chat_id, "Жесть... в вашем мире убить кого-то это так... тяжело?")
-    except BotNotFoundError:
-        pass
-    except Exception:
-        pass
-
-
-@router.message(F.text.lower().in_({"поцеловать", "поцеловал", "поцеловала"}))
-async def rp_kiss(message: Message):
-    if not message.reply_to_message:
-        return
-
-    sender = message.from_user
-    target = message.reply_to_message.from_user or message.reply_to_message.sender_chat
-    if not target or not hasattr(target, "id"):
-        return
-
-    name1 = sender.username or sender.first_name
-    name2 = getattr(target, "username", None) or getattr(target, "first_name", None) or getattr(target, "title", "Безымянный")
+    trigger = parts[2].lower().strip()
     chat_id = message.chat.id
 
-    if not await isrpable(message, target, sender):
+    if chat_id not in RP_COMMANDS or trigger not in RP_COMMANDS[chat_id]:
+        await message.answer("Такой команды нет.")
         return
 
-    if name1 == name2:
-        await message.reply("Ты... пытаешься поцеловать себя? Ну... ладно.")
-        return
+    await pool.execute(
+        "DELETE FROM rp_commands WHERE chat_id = $1 AND trigger = $2",
+        chat_id,
+        trigger,
+    )
 
-    if target.id == 7965136625:
-        if sender.id not in ADMIN_LIST:
-            await message.reply("Э.. Эй! Меня не надо целовать!")
-            return
-        await message.reply("хехехе... спасибо Провиденс!~")
-        return
+    RP_COMMANDS[chat_id].pop(trigger, None)
 
-    if target.id == 8324502664:
-        try:
-            monika = await get_bot_in_chat("monika", chat_id)
-            if sender.id not in ADMIN_LIST:
-                await monika.send_message(chat_id, f"Ага @{name1}, еще чего?")
-                return
-            await message.reply(f"@{name1} поцеловал(-а) @{name2}!")
-            await asyncio.sleep(0.5)
-            await monika.send_message(chat_id, "...")
-            await asyncio.sleep(0.5)
-            await message.reply(f"@{name2} поцеловал(-а) @{name1}!")
-        except Exception as e:
-            print("Ошибка при ответе Моники:", e)
-        return
-
-    if target.id == 8310255380:
-        try:
-            yuri = await get_bot_in_chat("yuri", chat_id)
-            if sender.id != 6144518515:
-                await yuri.send_message(chat_id, f"н.. нет, я не могу, извини")
-                return
-            await message.reply(f"@{name1} поцеловал(-а) @{name2}!")
-            await asyncio.sleep(0.5)
-            await yuri.send_message(chat_id, "*краснеет*")
-        except Exception as e:
-            print("Ошибка при ответе Юри", e)
-        return
-
-    await message.reply(f"@{name1} поцеловал(-а) @{name2}!")
+    await message.answer(f"Команда '{trigger}' удалена.")
 
 
-@router.message(F.text.lower().in_({"изнасиловать", "изнасиловал", "изнасиловала"}))
-async def rp_rape(message: Message):
-    if not message.reply_to_message:
-        return
+# ===================== LIST =====================
 
-    sender = message.from_user
-    target = message.reply_to_message.from_user or message.reply_to_message.sender_chat
-    if not target or not hasattr(target, "id"):
-        return
-
-    name1 = sender.username or sender.first_name
-    name2 = getattr(target, "username", None) or getattr(target, "first_name", None) or getattr(target, "title", "Безымянный")
+@router.message(lambda msg: msg.text == "сайори команды")
+async def list_rp(message: Message):
     chat_id = message.chat.id
 
-    if not await isrpable(message, target, sender):
-        return
-    if not await is18rpable(message, target, sender):
-        return
-
-    if name1 == name2:
-        await message.reply("Это отвратительно.")
+    if chat_id not in RP_COMMANDS or not RP_COMMANDS[chat_id]:
+        await message.answer("Нет RP команд.")
         return
 
-    if target.id in (7965136625, 8324502664):
-        await message.reply("Нет.")
-        return
+    cmds = list(RP_COMMANDS[chat_id].keys())
 
-    await message.reply(f"..@{name1} изнасиловал(-а) @{name2}")
-
-
-@router.message(F.text.lower().in_({"погладить", "погладила", "погладил"}))
-async def rp_pet(message: Message):
-    if not message.reply_to_message:
-        return
-
-    sender = message.from_user
-    target = message.reply_to_message.from_user or message.reply_to_message.sender_chat
-    if not target or not hasattr(target, "id"):
-        return
-
-    name1 = sender.username or sender.first_name
-    name2 = getattr(target, "username", None) or getattr(target, "first_name", None) or getattr(target, "title", "Безымянный")
-
-    if not await isrpable(message, target, sender):
-        return
-
-    await message.reply(f"@{name1} аккуратно погладил(-а) @{name2}.")
+    await message.answer(
+        "RP команды:\n" + "\n".join(cmds[:30])
+    )
 
 
-@router.message(F.text.lower().in_({"киркифицировать", "киркифицировал", "киркифицировала"}))
-async def rp_kirk(message: Message):
-    if not message.reply_to_message:
-        return
+# ===================== RELOAD =====================
 
-    sender = message.from_user
-    target = message.reply_to_message.from_user or message.reply_to_message.sender_chat
-    if not target or not hasattr(target, "id"):
-        return
+@router.message(lambda msg: msg.text == "сайори загрузи команды")
+async def reload_rp(message: Message, pool):
+    await load_rp_commands(pool)
+    await message.answer("Команды перезагружены.")
 
-    name1 = sender.username or sender.first_name
-    name2 = getattr(target, "username", None) or getattr(target, "first_name", None) or getattr(target, "title", "Безымянный")
+
+# ===================== RP HANDLER =====================
+
+@router.message(
+    lambda msg: (
+        msg.text
+        and msg.chat.id in RP_COMMANDS
+        and msg.text.lower().strip() in RP_COMMANDS[msg.chat.id]
+    )
+)
+async def rp_handler(message: Message):
     chat_id = message.chat.id
+    cmd = message.text.lower().strip()
 
-    if not await isrpable(message, target, sender):
-        return
-    if not await is18rpable(message, target, sender):
-        return
-
-    if name1 == name2:
+    target = get_target(message)
+    if not target:
         return
 
-    await message.reply(f"ХОЛИ ЩИТ @{name1} КИРКИФИЦИРОВАЛ(-а) @{name2}!!!!")
+    sender = message.from_user
+
+    order, action = RP_COMMANDS[chat_id][cmd]
+
+    text = render(order, action, sender, target)
+
+    await message.answer(text)

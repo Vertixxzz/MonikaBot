@@ -28,6 +28,9 @@ from .handlers.promo import router as promo_router
 from .handlers.secret import router as secret_router
 from .handlers.wedding import router as wedding_router
 from .handlers.antiharem import router as antiharem_router
+from .handlers.kick import router as kick_router
+from .handlers.ban import router as ban_router
+from .handlers.mute import router as mute_router
 logger = logging.getLogger(__name__)
 
 
@@ -40,6 +43,9 @@ def register_monika_handlers(dp: Dispatcher) -> None:
     register_greetings(dp)
 
     routers: tuple[Router, ...] = (
+        kick_router,
+        ban_router,
+        mute_router,
         wedding_router,
         antiharem_router,
         secret_router,
