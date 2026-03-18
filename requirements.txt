@@ -9,3 +9,4 @@ ffmpeg
 openai==0.28
 deep_translator
 pillow
+html
