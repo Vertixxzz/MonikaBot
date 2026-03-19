@@ -180,7 +180,7 @@ async def delete_rp(message: Message, pool):
 
 # ===================== LIST =====================
 
-@router.message(lambda msg: msg.text == "сайори команды")
+@router.message(lambda msg: msg.text and msg.text.lower().startswith("сайори команды"))
 async def list_rp(message: Message):
     chat_id = message.chat.id
 
