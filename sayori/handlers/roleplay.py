@@ -10,6 +10,7 @@ router = Router()
 
 # {chat_id: {trigger: (order, action)}} это так же страшно понимать, как и читать
 RP_COMMANDS: dict[int, dict[str, tuple[str, str]]] = {}
+FORBIDDEN = ["мут", "бан", "варн", "кик"]
 
 MAX_COMMANDS_PER_CHAT = 100
 MIN_TRIGGER_LEN = 2
@@ -129,6 +130,10 @@ async def create_rp(message: Message, pool):
 
     if len(RP_COMMANDS[chat_id]) >= MAX_COMMANDS_PER_CHAT:
         await message.answer("Слишком много команд в чате.")
+        return
+
+    if trigger in FORBIDDEN:
+        await message.answer("Ага! захотел!")
         return
 
     # --- запись ---
