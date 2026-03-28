@@ -55,3 +55,31 @@ async def mute_handler(message, pool):
         await message.answer(f"{who} замучен навсегда.")
     else:
         await message.answer(f"{who} замучен на {duration_text}.")
+
+@router.message(lambda msg: msg.text and msg.text.lower().split()[0] in ["размут", "анмут", "говори"])
+async def unmute_handler(message, pool):
+    if not await require_admin(message):
+        return
+
+    chat_id = message.chat.id
+    user_id, display = await resolve_target_user(message, pool, username_pos=1)
+
+    if not user_id:
+        await message.answer("Укажи пользователя реплаем или так: `размут @username`.")
+        return
+
+    if await deny_if_self(message, user_id, "размутить"):
+        return
+
+    try:
+        await message.bot.restrict_chat_member(
+            chat_id=chat_id,
+            user_id=user_id,
+            permissions=ChatPermissions(can_send_messages=True),
+        )
+    except TelegramBadRequest as e:
+        await message.answer(tg_human_error(e))
+        return
+
+    who = who_label(display)
+    await message.answer(f"{who} теперь может говорить.")
