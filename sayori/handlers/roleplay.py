@@ -201,13 +201,16 @@ async def list_rp(message: Message):
 
 # ===================== RELOAD (ADMIN ONLY) =====================
 
+async def load_commands_on_startup(pool):
+    await load_rp_commands(pool)
+
 @router.message(lambda msg: msg.text == "сайори загрузи команды")
 async def reload_rp(message: Message, pool):
     if not await is_admin(message):
         await message.answer("Только администраторы могут перезагружать команды.")
         return
 
-    await load_rp_commands(pool)
+    await load_commands_on_startup(pool)
     await message.answer("Команды перезагружены.")
 
 

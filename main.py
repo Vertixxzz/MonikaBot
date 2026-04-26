@@ -15,6 +15,8 @@ from common.utils.links import register_bot
 from common.db.core import connect_db, close_db
 from common.db.pool import PoolMiddleware
 
+from sayori.handlers.roleplay import load_commands_on_startup
+
 # локалка
 from cfg import (
     HOST,
@@ -88,6 +90,12 @@ async def build_dispatchers():
 
     pool = await connect_db()
 
+    try:
+        await load_commands_on_startup(pool)
+        logger.info("RP commands loaded on startup")
+    except Exception:
+        logger.exception("Failed to load RP commands on startup")
+
     # --- Monika ---
     register_monika_middlewares(monika_dp, pool)
     monika_dp.update.outer_middleware(PoolMiddleware(pool))
@@ -97,7 +105,6 @@ async def build_dispatchers():
     register_sayori_middlewares(sayori_dp)
     sayori_dp.update.outer_middleware(PoolMiddleware(pool))
     register_sayori_handlers(sayori_dp)
-
     # --- Yuri ---
     yuri_dp.update.outer_middleware(PoolMiddleware(pool))
     register_yuri_handlers(yuri_dp)
@@ -389,4 +396,3 @@ if __name__ == "__main__":
         raise SystemExit(
             f"Unknown RUN_MODE: {RUN_MODE!r} (use POLLING / WEBHOOK / DEBUG)"
         )
-

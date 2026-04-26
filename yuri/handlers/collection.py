@@ -8,7 +8,7 @@ from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from common.db.utilities import get_usernames_by_ids
-from yuri.handlers.gacha import send_card_by_user_id  # поправь путь, если у тебя иначе
+from yuri.handlers.gacha import send_card_by_user_id
 
 logger = logging.getLogger(__name__)
 router = Router()

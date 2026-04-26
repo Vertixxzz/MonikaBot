@@ -32,6 +32,13 @@ RARITY_DOWNGRADE = {
     "COMMON": None,
 }
 
+RARITY_PRICE =  {
+    "THE CREATOR": 6000,
+    "LEGENDARY": 1300,
+    "EPIC": 700,
+    "RARE": 400,
+    "COMMON": 150,
+}
 
 FailReason = Literal["NOT_ENOUGH_BALANCE", "POOL_EMPTY"]
 
