@@ -5,7 +5,7 @@ from aiogram.types import ChatPermissions
 from aiogram.exceptions import TelegramBadRequest
 
 from common.utils.manage import (
-    require_admin,
+    require_bot_admin,
     resolve_target_user,
     deny_if_self,
     get_args_after_target,
@@ -19,7 +19,7 @@ router = Router()
 
 @router.message(lambda msg: msg.text and msg.text.lower().split()[0] == "мут")
 async def mute_handler(message, pool):
-    if not await require_admin(message):
+    if not await require_bot_admin(pool, message.chat.id, message.from_user.id):
         return
 
     chat_id = message.chat.id
@@ -68,7 +68,7 @@ async def mute_handler(message, pool):
 
 @router.message(lambda msg: msg.text and msg.text.lower().split()[0] in ["размут", "анмут", "говори"])
 async def unmute_handler(message, pool):
-    if not await require_admin(message):
+    if not await require_bot_admin(pool, message.chat.id, message.from_user.id):
         return
 
     chat_id = message.chat.id

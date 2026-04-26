@@ -20,6 +20,21 @@ async def require_admin(message: Message) -> bool:
         return False
     return True
 
+async def require_bot_admin(pool, chat_id: int, user_id: int) -> bool:
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            """
+            SELECT EXISTS(
+                SELECT 1
+                FROM bot_admins
+                WHERE chat_id = $1
+                  AND user_id = $2
+            )
+            """,
+            chat_id,
+            user_id,
+        )
+
 
 def who_label(display: str | None) -> str:
     if not display:

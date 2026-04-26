@@ -2,7 +2,7 @@ from aiogram import Router
 from aiogram.exceptions import TelegramBadRequest
 
 from common.utils.manage import (
-    require_admin,
+    require_bot_admin,
     resolve_target_user,
     deny_if_self,
     who_label,
@@ -14,7 +14,7 @@ router = Router()
 
 @router.message(lambda msg: msg.text and msg.text.lower().split()[0] == "кик")
 async def kick_handler(message, pool):
-    if not await require_admin(message):
+    if not await require_bot_admin(pool, message.chat.id, message.from_user.id):
         return
 
     chat_id = message.chat.id
