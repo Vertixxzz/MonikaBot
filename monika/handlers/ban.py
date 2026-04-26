@@ -20,6 +20,7 @@ router = Router()
 @router.message(lambda msg: msg.text and msg.text.lower().split()[0] == "бан")
 async def ban_handler(message, pool):
     if not await require_bot_admin(pool, message.chat.id, message.from_user.id):
+        message.reply("Ты не админ этого чата!")
         return
 
     chat_id = message.chat.id
@@ -66,6 +67,7 @@ async def ban_handler(message, pool):
 @router.message(lambda msg: msg.text and msg.text.lower().split()[0] == "разбан")
 async def unban_handler(message, pool):
     if not await require_bot_admin(pool, message.chat.id, message.from_user.id):
+        message.reply("Ты не админ этого чата!")
         return
 
     chat_id = message.chat.id

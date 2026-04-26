@@ -25,6 +25,7 @@ router = Router()
 @router.message(lambda msg: msg.text and msg.text.lower().split()[0] == "варн")
 async def warn_user_handler(message, pool):
     if not await require_bot_admin(pool, message.chat.id, message.from_user.id):
+        message.reply("Ты не админ этого чата!")
         return
 
     chat_id = message.chat.id
@@ -81,6 +82,7 @@ async def warn_user_handler(message, pool):
 @router.message(F.text.lower().startswith("снять варн"))
 async def warn_user_snyat(message, pool):
     if not await require_bot_admin(pool, message.chat.id, message.from_user.id):
+        message.reply("Ты не админ этого чата!")
         return
 
     chat_id = message.chat.id
