@@ -253,7 +253,13 @@ async def ask_hint(message: Message, pool):
 
     try:
         monika = await get_bot_in_chat("monika", chat_id)
-        await monika.send_message(chat_id, f"первая буква - {first.upper()}. никому не говори~")
+        await monika.send_message(
+            chat_id=chat_id,
+            text=(
+                f'первая буква - {first.upper()}. никому не говори~ '
+            ),
+            reply_to_message_id=message.message_id,
+        )
     except BotNotFoundError:
         await message.answer(f"первая буква - {first.upper()}")
     except Exception as e:
