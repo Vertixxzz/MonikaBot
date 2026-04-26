@@ -116,12 +116,13 @@ WORDS_HARD = [
     "квазигосударственность",
     "чрезвычайнонепредсказуемый",
     "самоидентифицирующийся",
+    "какжепохорошелаберлогапривертиксе",
 ]
 
 DIFFICULTIES = {
-    "easy":   {"reward": 100, "wrong_penalty": 1, "max_fails": 7, "words": WORDS_EASY, "hint_cost": 50},
-    "normal": {"reward": 200, "wrong_penalty": 1, "max_fails": 7, "words": WORDS_NORMAL, "hint_cost": 50},
-    "hard":   {"reward": 500, "wrong_penalty": 2, "max_fails": 7, "words": WORDS_HARD, "hint_cost": 50},  # hard +2 fail
+    "easy":   {"reward": 100, "wrong_penalty": 1, "max_fails": 7, "words": WORDS_EASY, "hint_cost": 0},
+    "normal": {"reward": 200, "wrong_penalty": 1, "max_fails": 7, "words": WORDS_NORMAL, "hint_cost": 0},
+    "hard":   {"reward": 500, "wrong_penalty": 2, "max_fails": 7, "words": WORDS_HARD, "hint_cost": 0},  # hard +2 fail
 }
 
 HANGMAN = [
@@ -183,7 +184,7 @@ async def start_hangman(message: Message, pool):
         "Оплачиваемые игры на сегодня закончились - докидолларов я тебе за нее не дам"
     )
 
-    if random.random() < 0.20:
+    if random.random() < 0.30:
         state["monika_offer"] = True
         await message.answer(
             f"Начнём игру в виселицу! (сложность: {diff_arg or 'средняя'})\n"
@@ -196,15 +197,18 @@ async def start_hangman(message: Message, pool):
             await asyncio.sleep(0.6)
             cost = DIFFICULTIES[diff]["hint_cost"]
             await monika.send_message(
-                chat_id,
-                f'эй. я тут! хочешь подскажу первую букву за {cost} докидолларов? '
-                'просто напиши "подсказка"'
+                chat_id=chat_id,
+                text=(
+                    'эй. я тут! хочешь подскажу первую букву? '
+                    'просто напиши "подсказка"'
+                ),
+                reply_to_message_id=message.message_id,
             )
         except BotNotFoundError:
             cost = DIFFICULTIES[diff]["hint_cost"]
             await message.answer(
                 'эм… кажется, Моника не может писать сюда. '
-                f'но если бы могла - она бы предложила "подсказка" за {cost}.'
+                f'но если бы могла - она бы предложила "подсказка".'
             )
         except Exception as e:
             print(f"Ошибка при сообщении Моники: {e}")
