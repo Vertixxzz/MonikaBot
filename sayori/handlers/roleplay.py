@@ -87,7 +87,7 @@ def render(order: str, action: str, sender, target_id, target_username):
 
     if order == "12":
         return f"{m_sender} {action} {m_target}"
-    else:
+    elif order == "21":
         return f"{m_target} {action} {m_sender}"
 
 
@@ -135,6 +135,7 @@ async def create_rp(message: Message, pool):
     if trigger in FORBIDDEN:
         await message.answer("Ага! захотел!")
         return
+
 
     # --- запись ---
     await pool.execute(
