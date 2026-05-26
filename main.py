@@ -272,6 +272,12 @@ def build_app() -> FastAPI:
                 )
                 await asyncio.sleep(delay)
 
+    async def monitor_tasks():
+        while True:
+            tasks = len(asyncio.all_tasks())
+            logger.warning("ACTIVE TASKS: %s", tasks)
+            await asyncio.sleep(60)
+
     @app.on_event("startup")
     async def on_startup():
         (
@@ -299,6 +305,7 @@ def build_app() -> FastAPI:
                 pass
 
         asyncio.create_task(webhook_retry_loop(monika_bot, sayori_bot, yuri_bot))
+        asyncio.create_task(monitor_tasks())
 
     @app.on_event("shutdown")
     async def on_shutdown():
@@ -324,15 +331,6 @@ def build_app() -> FastAPI:
         await close_db()
         logger.info("All bots stopped (webhook)")
 
-    def _spawn_update_task(dp: Dispatcher, bot: Bot, update: Update, which: str) -> None:
-        async def _runner():
-            try:
-                await dp.feed_update(bot, update)  # type: ignore[arg-type]
-            except Exception:
-                logger.exception("Failed to process update (%s)", which)
-
-        asyncio.create_task(_runner())
-
     async def _handle(request: Request, which: str) -> dict[str, Any]:
         secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
 
@@ -341,23 +339,37 @@ def build_app() -> FastAPI:
                 raise HTTPException(403)
             bot = holder["monika_bot"]
             dp = holder["monika_dp"]
+
         elif which == "sayori":
             if secret != SECRET_TOKEN_SAYORI:
                 raise HTTPException(403)
             bot = holder["sayori_bot"]
             dp = holder["sayori_dp"]
+
         else:
             if secret != SECRET_TOKEN_YURI:
                 raise HTTPException(403)
             bot = holder["yuri_bot"]
             dp = holder["yuri_dp"]
 
-        data = await request.json()
-        update = Update.model_validate(data)
+        try:
+            data = await request.json()
+            update = Update.model_validate(data)
 
-        _spawn_update_task(dp, bot, update, which)  # type: ignore[arg-type]
+            await asyncio.wait_for(
+                dp.feed_update(bot, update),
+                timeout=30,
+            )
 
-        return {"ok": True}
+            return {"ok": True}
+
+        except asyncio.TimeoutError:
+            logger.error("Update timeout (%s)", which)
+            return {"ok": False}
+
+        except Exception:
+            logger.exception("Failed to process update (%s)", which)
+            return {"ok": False}
 
     @app.post(path_monika)
     async def monika_webhook(request: Request):

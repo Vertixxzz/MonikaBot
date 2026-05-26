@@ -139,7 +139,7 @@ async def marriage_divorce(message: Message, pool):
 
     divorced = await db_divorce_by_user(pool, user.id)
     if not divorced:
-        await message.answer("Ты не в браке. Разводиться не с кем 👀")
+        await message.answer("Ты не в браке. Разводиться не с кем")
         return
 
     partner_id = divorced["partner_id"]
