@@ -170,9 +170,9 @@ async def run_polling_both():
         asyncio.create_task(monika_dp.start_polling(monika_bot), name="monika_polling"),
         asyncio.create_task(sayori_dp.start_polling(sayori_bot), name="sayori_polling"),
         asyncio.create_task(yuri_dp.start_polling(yuri_bot), name="yuri_polling"),
-        asyncio.create_task(_console(monika_bot, "Monika")),
-        asyncio.create_task(_console(sayori_bot, "Sayori")),
-        asyncio.create_task(_console(yuri_bot, "Yuri")),
+        #asyncio.create_task(_console(monika_bot, "Monika")),
+        #asyncio.create_task(_console(sayori_bot, "Sayori")),
+        #asyncio.create_task(_console(yuri_bot, "Yuri")),
     ]
 
     def _cancel_all():
