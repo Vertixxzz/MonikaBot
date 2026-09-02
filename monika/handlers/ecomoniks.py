@@ -103,7 +103,7 @@ async def monika_claim_money(message: Message, pool):
         await add_box(pool, user_id, message.chat.id)
         await message.reply(f"Держи, вот тебе {amount} докидолларов")
         await message.reply("О, и вот тебе еще этот странный сундук...")
-    else
+    else:
         await message.reply(f"Держи, вот тебе {amount} докидолларов!")
 
 
