@@ -4,6 +4,7 @@ from aiogram.filters import Command
 from common.db.economics import (
     add_wallet, get_balance, add_balance, transfer_money
 )
+from common.db.lootboxes import add_box
 import random
 from datetime import datetime, timedelta, timezone
 from cfg import ADMIN_LIST
@@ -96,8 +97,14 @@ async def monika_claim_money(message: Message, pool):
                 amount,
                 username,
             )
+    lootbox_received = random.randint(1, 100) <= 33
 
-    await message.reply(f"Держи, вот тебе {amount} докидолларов!")
+    if lootbox_received:
+        await add_box(pool, user_id, message.chat.id)
+        await message.reply(f"Держи, вот тебе {amount} докидолларов")
+        await message.reply("О, и вот тебе еще этот странный сундук...")
+    else
+        await message.reply(f"Держи, вот тебе {amount} докидолларов!")
 
 
 

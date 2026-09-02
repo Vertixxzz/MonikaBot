@@ -28,6 +28,6 @@ async def buykey(message: types.Message, pool):
         message.chat.id
     )
 
-    await message.reply("Готово! Я добавила тебе один ключ!")
+    await message.reply("Готово, добавила тебе один ключ")
 
 
