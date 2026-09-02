@@ -12,5 +12,7 @@ async def buykey(message: types.Message, Pool):
         return
     await add_balance(Pool, message.from_user.id, message.from_user.username, -1000)
     await add_key(Pool, message.from_user.id, message.chat.id)
+
     await message.reply("Готово! Я добавила тебе один ключ!")
+
 

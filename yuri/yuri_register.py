@@ -7,6 +7,7 @@ from .handlers.card import router as card_router
 from .handlers.recalculate import router as recalculate_router
 from .handlers.gacha import router as gacha_router
 from .handlers.collection import router as collection_router
+from .handlers.buykey import router as buykey_router
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ def register_yuri_handlers(dp: Dispatcher) -> None:
         help_router,
         card_router,
         recalculate_router,
+        buykey_router,
     )
 
     for r in routers:
