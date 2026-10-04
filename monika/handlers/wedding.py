@@ -14,7 +14,7 @@ from common.db.weddings import (
 
 )
 
-from common.db.utilies import get_usernames_by_ids
+from common.db.utilities import get_usernames_by_ids
 
 router = Router()
 
