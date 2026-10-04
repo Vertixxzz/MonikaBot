@@ -14,6 +14,8 @@ from common.db.weddings import (
 
 )
 
+from common.db.utilies import get_usernames_by_ids
+
 router = Router()
 
 
@@ -122,10 +124,12 @@ async def marriage_info(message: Message, pool):
     created_at = marriage["created_at"]
     days = _days_since(created_at)
     partner_id = marriage["user2_id"] if user.id == marriage["user1_id"] else marriage["user1_id"]
+    partner_usernames = await get_usernames_by_ids(pool, [partner_id])
+    partner_username = partner_usernames.get(partner_id)
 
     await message.answer(
         "*Информация о браке*\n\n"
-        f"Ты женат(а) с: `{partner_id}`\n"
+        f"Ты женат(а) с: `{partner_username}`\n"
         f"Дата свадьбы: `{created_at}`\n"
         f"Прошло дней: *{days}*",
         parse_mode="Markdown",
@@ -135,6 +139,12 @@ async def marriage_info(message: Message, pool):
 async def marriage_divorce(message: Message, pool):
     user = message.from_user
     if not user:
+        return
+
+    user_id = message.from_user.id
+
+    if user_id in (5311979714, 5089834722):
+        await message.reply("нет нет нет! это любовь навека!!")
         return
 
     divorced = await db_divorce_by_user(pool, user.id)
