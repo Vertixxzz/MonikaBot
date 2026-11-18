@@ -30,7 +30,9 @@ from .tga_questions import TGA_QUESTIONS
 logger = logging.getLogger(__name__)
 
 router = Router()
-router.message.filter(F.chat.type == "private")
+
+PRIVATE = F.chat.type == "private"
+POLL_COMMANDS = {"моника опрос", "моника опрос заново"}
 
 MAX_REPLY_LEN = 300
 SKIP_WORDS = {"пропустить", "пропуск", "скип", "-"}
@@ -62,19 +64,30 @@ async def _ask(message: Message, state: FSMContext, q_num: int) -> None:
     await message.answer(_question_text(q_num), parse_mode="HTML")
 
 
+# ---------- в группе: только отправляем в ЛС ----------
+
+@router.message(~PRIVATE, F.text.lower().strip().in_(POLL_COMMANDS))
+async def tga_not_private(message: Message):
+    me = await message.bot.me()
+    await message.reply(
+        f"Опрос проходит только в личных сообщениях\n"
+        f"Напиши мне в ЛС: @{me.username} — «моника опрос»"
+    )
+
+
 # ---------- старт / продолжение ----------
 
-@router.message(F.text.lower().strip() == "моника опрос заново")
+@router.message(PRIVATE, F.text.lower().strip() == "моника опрос заново")
 async def tga_restart(message: Message, state: FSMContext, pool):
     user = message.from_user
     await ensure_tga_table(pool)
     await tga_start(pool, user.id, user.username, user.full_name)
     await tga_reset(pool, user.id)
-    await message.answer("Начинаем с чистого листа! 🌸")
+    await message.answer("Начинаем с чистого листа!")
     await _ask(message, state, 1)
 
 
-@router.message(F.text.lower().strip() == "моника опрос")
+@router.message(PRIVATE, F.text.lower().strip() == "моника опрос")
 async def tga_begin(message: Message, state: FSMContext, pool):
     user = message.from_user
     await ensure_tga_table(pool)
@@ -83,7 +96,7 @@ async def tga_begin(message: Message, state: FSMContext, pool):
     if existing and existing["completed_at"] is not None:
         await state.clear()
         await message.answer(
-            "Ты уже прошёл опрос, спасибо! 💚\n"
+            "Ты уже прошёл опрос, спасибо!\n"
             "Если хочешь переголосовать — напиши «моника опрос заново»."
         )
         return
@@ -93,8 +106,8 @@ async def tga_begin(message: Message, state: FSMContext, pool):
     if q_num == 1:
         await message.answer(
             "Привет! Это первый этап <b>Берлога Awards</b> 🏆\n"
-            f"Я задам {QUESTIONS_COUNT} вопросов — в каждой номинации напиши, кого ты предлагаешь.\n\n"
-            "«пропустить» — пропустить номинацию\n"
+            f"Я задам {QUESTIONS_COUNT} вопросов - в каждой номинации напиши, кого ты предлагаешь.\n\n"
+            "«пропустить» - пропустить номинацию\n"
             "«стоп» — пауза, потом продолжишь командой «моника опрос»",
             parse_mode="HTML",
         )
@@ -106,7 +119,7 @@ async def tga_begin(message: Message, state: FSMContext, pool):
 
 # ---------- ответы ----------
 
-@router.message(StateFilter(TgaPoll.answering))
+@router.message(PRIVATE, StateFilter(TgaPoll.answering))
 async def tga_answer(message: Message, state: FSMContext, pool):
     user = message.from_user
     data = await state.get_data()
@@ -114,7 +127,7 @@ async def tga_answer(message: Message, state: FSMContext, pool):
 
     text = (message.text or "").strip()
     if not text:
-        await message.answer("Мне нужен текстовый ответ 🙂 Напиши номинанта или «пропустить».")
+        await message.answer("Мне нужен текстовый ответ. Напиши номинанта или «пропустить».")
         return
 
     low = text.lower()
@@ -141,8 +154,8 @@ async def tga_answer(message: Message, state: FSMContext, pool):
     if q_num >= QUESTIONS_COUNT:
         await state.clear()
         await message.answer(
-            "Готово! Все ответы записаны 💚\n"
-            "Скоро будет второй этап — голосование за победителей."
+            "Готово! Все ответы записаны\n"
+            "Скоро будет второй этап - голосование за победителей."
         )
         return
 
