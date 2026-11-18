@@ -41,6 +41,30 @@ async def tga_get(pool: Pool, user_id: int):
         )
 
 
+async def tga_all(pool: Pool) -> list:
+    """Все анкеты: сначала завершённые (по времени), потом незавершённые."""
+    async with pool.acquire() as conn:
+        return await conn.fetch(
+            """
+            SELECT * FROM tga_nominations
+            ORDER BY completed_at IS NULL, completed_at, started_at
+            """
+        )
+
+
+async def tga_find(pool: Pool, query: str):
+    """Ищет анкету по user_id или username (с @ или без)."""
+    q = query.strip().lstrip("@")
+    async with pool.acquire() as conn:
+        if q.lstrip("-").isdigit():
+            return await conn.fetchrow(
+                "SELECT * FROM tga_nominations WHERE user_id = $1", int(q)
+            )
+        return await conn.fetchrow(
+            "SELECT * FROM tga_nominations WHERE LOWER(username) = LOWER($1)", q
+        )
+
+
 async def tga_start(pool: Pool, user_id: int, username: str | None, full_name: str | None) -> int:
     """Создаёт запись (если её нет) и возвращает номер вопроса, с которого продолжать."""
     async with pool.acquire() as conn:

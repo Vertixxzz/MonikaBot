@@ -32,6 +32,7 @@ from .handlers.kick import router as kick_router
 from .handlers.ban import router as ban_router
 from .handlers.mute import router as mute_router
 from .handlers.tga import router as tga_router
+from .handlers.tga_admin import router as tga_admin_router
 logger = logging.getLogger(__name__)
 
 
@@ -44,6 +45,7 @@ def register_monika_handlers(dp: Dispatcher) -> None:
     register_greetings(dp)
 
     routers: tuple[Router, ...] = (
+        tga_admin_router,  # админ-команды «тга ...» раньше опроса, чтобы не записались как ответ
         tga_router,  # первым: в состоянии опроса ответы не должны уходить в другие хендлеры
         kick_router,
         ban_router,
