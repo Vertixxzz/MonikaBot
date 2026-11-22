@@ -19,7 +19,9 @@ from aiogram.types import Message
 
 from common.db.tga import (
     QUESTIONS_COUNT,
+    STAGE1_OPEN,
     ensure_tga_table,
+    tga_setting_get,
     tga_get,
     tga_reset,
     tga_save_reply,
@@ -58,6 +60,12 @@ def _question_text(q_num: int) -> str:
     )
 
 
+STAGE1_CLOSED_TEXT = (
+    "Сбор номинантов уже закрыт, спасибо всем, кто участвовал!\n"
+    "Финальное голосование: «моника голосование»."
+)
+
+
 async def _ask(message: Message, state: FSMContext, q_num: int) -> None:
     await state.set_state(TgaPoll.answering)
     await state.update_data(q_num=q_num)
@@ -67,7 +75,10 @@ async def _ask(message: Message, state: FSMContext, q_num: int) -> None:
 # ---------- в группе: только отправляем в ЛС ----------
 
 @router.message(~PRIVATE, F.text.lower().strip().in_(POLL_COMMANDS))
-async def tga_not_private(message: Message):
+async def tga_not_private(message: Message, pool):
+    if not await tga_setting_get(pool, STAGE1_OPEN):
+        await message.reply(STAGE1_CLOSED_TEXT)
+        return
     me = await message.bot.me()
     await message.reply(
         f"Опрос проходит только в личных сообщениях\n"
@@ -79,6 +90,10 @@ async def tga_not_private(message: Message):
 
 @router.message(PRIVATE, F.text.lower().strip() == "моника опрос заново")
 async def tga_restart(message: Message, state: FSMContext, pool):
+    if not await tga_setting_get(pool, STAGE1_OPEN):
+        await state.clear()
+        await message.answer(STAGE1_CLOSED_TEXT)
+        return
     user = message.from_user
     await ensure_tga_table(pool)
     await tga_start(pool, user.id, user.username, user.full_name)
@@ -89,6 +104,10 @@ async def tga_restart(message: Message, state: FSMContext, pool):
 
 @router.message(PRIVATE, F.text.lower().strip() == "моника опрос")
 async def tga_begin(message: Message, state: FSMContext, pool):
+    if not await tga_setting_get(pool, STAGE1_OPEN):
+        await state.clear()
+        await message.answer(STAGE1_CLOSED_TEXT)
+        return
     user = message.from_user
     await ensure_tga_table(pool)
 
@@ -128,6 +147,11 @@ async def tga_answer(message: Message, state: FSMContext, pool):
     text = (message.text or "").strip()
     if not text:
         await message.answer("Мне нужен текстовый ответ. Напиши номинанта или «пропустить».")
+        return
+
+    if not await tga_setting_get(pool, STAGE1_OPEN):
+        await state.clear()
+        await message.answer("Ответ не записан. " + STAGE1_CLOSED_TEXT)
         return
 
     low = text.lower()
