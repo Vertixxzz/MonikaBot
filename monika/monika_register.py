@@ -33,6 +33,7 @@ from .handlers.ban import router as ban_router
 from .handlers.mute import router as mute_router
 from .handlers.tga import router as tga_router
 from .handlers.tga_admin import router as tga_admin_router
+from .handlers.tga_vote import router as tga_vote_router, register_vote_deeplink
 logger = logging.getLogger(__name__)
 
 
@@ -42,10 +43,13 @@ def register_monika_middlewares(dp: Dispatcher, pool) -> None:
 
 
 def register_monika_handlers(dp: Dispatcher) -> None:
+    # «/start vote» (кнопка «Голосовать») — раньше приветствия, иначе /start заберёт приветствие
+    register_vote_deeplink(dp)
     register_greetings(dp)
 
     routers: tuple[Router, ...] = (
         tga_admin_router,  # админ-команды «тга ...» раньше опроса, чтобы не записались как ответ
+        tga_vote_router,  # до опроса: «моника голосование» не должна записаться как номинант
         tga_router,  # первым: в состоянии опроса ответы не должны уходить в другие хендлеры
         kick_router,
         ban_router,
@@ -77,6 +81,4 @@ def register_monika_handlers(dp: Dispatcher) -> None:
         dp.include_router(r)
 
     logger.info("Handlers registered (functions: 1, routers: %d)", len(routers))
-
-
 
